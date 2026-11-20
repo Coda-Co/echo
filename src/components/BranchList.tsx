@@ -91,6 +91,7 @@ export function BranchList({ repo }: { repo: RepoSummary }) {
               branch={b}
               now={now}
               selected={b.name === selected}
+              syncPaused={repo.sync.state.kind === "paused"}
               onSwitch={() => startSync(repo.id, b.name)}
               onPreview={() => onPreview(b.name, b.status.kind !== "seen")}
             />

@@ -4,7 +4,7 @@ import { ipc } from "../lib/ipc";
 import { copyText, fileManagerName, stateTone } from "../lib/format";
 import { useEcho } from "../lib/store";
 import type { RepoSummary } from "../lib/types";
-import { Button, Dot, SyncIcon } from "./ui";
+import { Button, Dot, PauseIcon, SyncIcon } from "./ui";
 
 async function pickFolder(title: string): Promise<string | null> {
   const picked = await open({ directory: true, multiple: false, title });
@@ -128,6 +128,9 @@ function RepoSyncIcon({ repo, selected }: { repo: RepoSummary; selected: boolean
         : tone === "muted"
           ? "text-zinc-400"
           : "text-green-600";
+  if (repo.sync.state.kind === "paused") {
+    return <PauseIcon title={`Paused on ${repo.sync.branch}`} className={selected ? "text-white/80" : "text-zinc-400"} />;
+  }
   return <SyncIcon title={`Syncing ${repo.sync.branch}`} className={color} />;
 }
 

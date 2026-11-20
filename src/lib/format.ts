@@ -27,9 +27,9 @@ export function useNow(ms = 1000): number {
 export type Badge = { label: string; tone: "accent" | "info" | "warn" | "muted" | "ok" };
 
 /** Badge for a branch row: synced > status > current. */
-export function branchBadge(b: BranchInfo): Badge | null {
+export function branchBadge(b: BranchInfo, syncPaused = false): Badge | null {
   if (b.deleted) return { label: "deleted", tone: "muted" };
-  if (b.isSynced) return { label: "synced", tone: "ok" };
+  if (b.isSynced) return syncPaused ? { label: "paused", tone: "muted" } : { label: "synced", tone: "ok" };
   const s = statusBadge(b.status);
   if (s) return s;
   if (b.isCurrent) return { label: "current", tone: "muted" };

@@ -4,7 +4,7 @@ import { copyText, relativeTime, shortSha, stateLabel, stateTone, useNow } from 
 import { useEcho } from "../lib/store";
 import type { ActiveFlag, FlagKind, RepoSummary, SyncEvent } from "../lib/types";
 import { BlockedPanel, type BlockedActions } from "./BlockedPanel";
-import { Button, Dot, Spinner } from "./ui";
+import { Button, Dot, PauseIcon, PlayIcon, Spinner } from "./ui";
 
 export function SyncBar({ repo }: { repo: RepoSummary }) {
   const { run, setPrompt, startSync, showToast } = useEcho.getState();
@@ -73,7 +73,7 @@ export function SyncBar({ repo }: { repo: RepoSummary }) {
       </div>
       <div className="mt-0.5 pl-4 text-xs text-zinc-500" data-testid="sync-state">
         {stateLabel(state)}
-        {sync.lastChecked && !working && <> · checked {relativeTime(sync.lastChecked, now)}</>}
+        {sync.lastChecked && !working && state.kind !== "paused" && <> · checked {relativeTime(sync.lastChecked, now)}</>}
         {sync.head && state.kind === "idle" && <> · {shortSha(sync.head)}</>}
       </div>
       <BlockedPanel state={state} branch={branch} actions={actions} />
@@ -147,22 +147,5 @@ function Flags({ repo }: { repo: RepoSummary }) {
         );
       })}
     </div>
-  );
-}
-
-function PauseIcon() {
-  return (
-    <svg aria-hidden width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-      <rect x="2.5" y="2" width="2.5" height="8" rx="0.5" />
-      <rect x="7" y="2" width="2.5" height="8" rx="0.5" />
-    </svg>
-  );
-}
-
-function PlayIcon() {
-  return (
-    <svg aria-hidden width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-      <path d="M3 2.2v7.6a.5.5 0 0 0 .76.43l6.2-3.8a.5.5 0 0 0 0-.86l-6.2-3.8A.5.5 0 0 0 3 2.2Z" />
-    </svg>
   );
 }

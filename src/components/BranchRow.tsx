@@ -1,20 +1,22 @@
 import { branchBadge, relativeTime } from "../lib/format";
 import type { BranchInfo } from "../lib/types";
-import { Badge, Button, Dot, SyncIcon } from "./ui";
+import { Badge, Button, Dot, PauseIcon, SyncIcon } from "./ui";
 
 interface Props {
   branch: BranchInfo;
   /** This branch is open in the preview panel. */
   selected: boolean;
   now: number;
+  /** Syncing is paused (only affects the synced branch's row). */
+  syncPaused?: boolean;
   /** Row click: check out this branch and keep it synced. */
   onSwitch: () => void;
   /** History button: toggle the history panel for this branch. */
   onPreview: () => void;
 }
 
-export function BranchRow({ branch: b, selected, now, onSwitch, onPreview }: Props) {
-  const badge = branchBadge(b);
+export function BranchRow({ branch: b, selected, now, syncPaused = false, onSwitch, onPreview }: Props) {
+  const badge = branchBadge(b, syncPaused);
   const dot = !b.deleted && b.status.kind !== "seen";
   const canSwitch = !b.deleted && !b.isSynced;
   return (
@@ -30,7 +32,13 @@ export function BranchRow({ branch: b, selected, now, onSwitch, onPreview }: Pro
     >
       <div className="flex w-3 justify-center self-start pt-1.5">
         {dot && <Dot tone="accent" title="Unseen activity" />}
-        {!dot && b.isSynced && <SyncIcon title="Synced" className="text-green-600" />}
+        {!dot &&
+          b.isSynced &&
+          (syncPaused ? (
+            <PauseIcon title="Sync paused" className="text-zinc-400" />
+          ) : (
+            <SyncIcon title="Synced" className="text-green-600" />
+          ))}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">

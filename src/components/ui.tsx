@@ -127,3 +127,26 @@ export function SyncIcon({ title, className = "" }: { title?: string; className?
     </svg>
   );
 }
+
+function iconA11y(title?: string) {
+  return title ? { role: "img", "aria-label": title } : { "aria-hidden": true };
+}
+
+export function PauseIcon({ title, className = "" }: { title?: string; className?: string }) {
+  return (
+    <svg {...iconA11y(title)} width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className={`shrink-0 ${className}`}>
+      {title && <title>{title}</title>}
+      <rect x="2.5" y="2" width="2.5" height="8" rx="0.5" />
+      <rect x="7" y="2" width="2.5" height="8" rx="0.5" />
+    </svg>
+  );
+}
+
+export function PlayIcon({ title, className = "" }: { title?: string; className?: string }) {
+  return (
+    <svg {...iconA11y(title)} width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className={`shrink-0 ${className}`}>
+      {title && <title>{title}</title>}
+      <path d="M3 2.2v7.6a.5.5 0 0 0 .76.43l6.2-3.8a.5.5 0 0 0 0-.86l-6.2-3.8A.5.5 0 0 0 3 2.2Z" />
+    </svg>
+  );
+}

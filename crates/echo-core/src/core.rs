@@ -507,7 +507,16 @@ impl Core {
             return;
         };
         if rc.sync_paused {
-            self.set_sync_state(h, Some(branch), SyncState::Paused { reason: PauseReason::User }, None);
+            // Nothing is checked while paused: only publish the state when it
+            // changes, so "checked … ago" keeps the time of the last real check.
+            let already = {
+                let rt = h.rt();
+                rt.sync.branch.as_deref() == Some(branch.as_str())
+                    && rt.sync.state == SyncState::Paused { reason: PauseReason::User }
+            };
+            if !already {
+                self.set_sync_state(h, Some(branch), SyncState::Paused { reason: PauseReason::User }, None);
+            }
             return;
         }
         let state = h.rt().sync.state.clone();

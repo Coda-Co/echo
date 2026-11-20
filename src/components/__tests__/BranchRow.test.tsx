@@ -17,10 +17,10 @@ const base: BranchInfo = {
   deleted: false,
 };
 
-function renderRow(b: Partial<BranchInfo>, handlers = { onSwitch: vi.fn(), onPreview: vi.fn() }) {
+function renderRow(b: Partial<BranchInfo>, handlers = { onSwitch: vi.fn(), onPreview: vi.fn() }, syncPaused = false) {
   render(
     <ul>
-      <BranchRow branch={{ ...base, ...b }} selected={false} now={now} {...handlers} />
+      <BranchRow branch={{ ...base, ...b }} selected={false} now={now} syncPaused={syncPaused} {...handlers} />
     </ul>,
   );
   return handlers;
@@ -49,6 +49,13 @@ describe("BranchRow", () => {
     renderRow(patch);
     expect(screen.getByTestId("badge")).toHaveTextContent(label);
     expect(!!screen.queryByLabelText("Unseen activity")).toBe(dot);
+  });
+
+  it("the synced branch shows as paused while sync is paused", () => {
+    renderRow({ isSynced: true }, undefined, true);
+    expect(screen.getByTestId("badge")).toHaveTextContent("paused");
+    expect(screen.getByRole("img", { name: "Sync paused" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Synced" })).toBeNull();
   });
 
   it("clicking the row switches to it", async () => {
