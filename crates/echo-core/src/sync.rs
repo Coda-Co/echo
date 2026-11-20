@@ -20,8 +20,9 @@ pub struct SyncCtx<'a> {
     pub last_synced: Option<&'a str>,
     pub policy: ForcePushPolicy,
     /// Called just before a tick starts fetching (the remote moved), so the UI
-    /// can show "Pulling".
-    pub on_pull: Option<&'a (dyn Fn() + Send + Sync)>,
+    /// can show "Pulling". Returning false abandons the tick before it touches
+    /// anything (the user paused while it was checking the remote).
+    pub on_pull: Option<&'a (dyn Fn() -> bool + Send + Sync)>,
 }
 
 impl<'a> SyncCtx<'a> {
@@ -123,7 +124,9 @@ async fn tick_inner(ctx: SyncCtx<'_>) -> Result<TickResult, GitError> {
     }
 
     if let Some(f) = ctx.on_pull {
-        f();
+        if !f() {
+            return Ok(TickResult::state(SyncState::Paused { reason: PauseReason::User }, head));
+        }
     }
     git.run(repo, &["fetch", "--no-tags", "origin", &branch_refspec(branch)], Mode::Network).await?;
     decide(ctx, false).await

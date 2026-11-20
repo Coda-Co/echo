@@ -525,15 +525,35 @@ impl Core {
         if !self.check_available(h) {
             return;
         }
+        // Pause (or a switch) may have landed while we waited for the lock.
+        if !self.still_syncing(&h.id, &branch) {
+            return;
+        }
         let last_synced = self.read_state(&h.id, |s| s.last_synced.get(&branch).cloned());
         let on_pull = {
             let (core, h, b) = (self.clone(), h.clone(), branch.clone());
-            move || core.set_sync_state(&h, Some(b.clone()), SyncState::Pulling, None)
+            move || {
+                if !core.still_syncing(&h.id, &b) {
+                    return false;
+                }
+                core.set_sync_state(&h, Some(b.clone()), SyncState::Pulling, None);
+                true
+            }
         };
         let ctx = SyncCtx::new(&git, &h.path, &branch).last_synced(last_synced.as_deref()).policy(rc.force_push_policy);
         let ctx = SyncCtx { on_pull: Some(&on_pull), ..ctx };
-        let res = sync::tick(ctx).await;
+        let mut res = sync::tick(ctx).await;
+        // Paused mid-tick: record whatever the tick already did, but don't let
+        // its result overwrite the paused state.
+        if self.repo_config(&h.id).is_some_and(|c| c.sync_paused) {
+            res.state = SyncState::Paused { reason: PauseReason::User };
+        }
         self.apply_tick(h, &rc, &branch, res, false).await;
+    }
+
+    /// The repo is still set to sync `branch` and isn't paused by the user.
+    fn still_syncing(&self, id: &str, branch: &str) -> bool {
+        self.repo_config(id).is_some_and(|c| !c.sync_paused && c.synced_branch.as_deref() == Some(branch))
     }
 
     /// Apply a tick result: persist, flags, events, notifications.

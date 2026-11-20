@@ -145,7 +145,10 @@ async fn switch_to_new_branch_then_fast_forward() {
     fx.agent_commit("claude/a", "b.txt", "2", "Second");
     let sha3 = fx.agent_commit("claude/a", "pnpm-lock.yaml", "x", "Third");
     let pulled = std::sync::atomic::AtomicBool::new(false);
-    let on_pull = || pulled.store(true, std::sync::atomic::Ordering::SeqCst);
+    let on_pull = || {
+        pulled.store(true, std::sync::atomic::Ordering::SeqCst);
+        true
+    };
     let ctx = SyncCtx { on_pull: Some(&on_pull), ..fx.ctx("claude/a", Some(&sha1)) };
     let t = sync::tick(ctx).await;
     assert!(pulled.load(std::sync::atomic::Ordering::SeqCst));
@@ -155,6 +158,22 @@ async fn switch_to_new_branch_then_fast_forward() {
     assert_eq!(m.files, vec!["b.txt", "pnpm-lock.yaml"]);
     assert_eq!(t.synced_sha.as_deref(), Some(sha3.as_str()));
     assert_eq!(fx.local_head(), sha3);
+}
+
+#[tokio::test]
+async fn pausing_mid_tick_stops_before_pulling() {
+    let fx = Fx::new().await;
+    let sha1 = fx.agent_commit("claude/a", "a.txt", "1", "First");
+    fx.switch("claude/a").await;
+    fx.agent_commit("claude/a", "b.txt", "2", "Second");
+
+    // The user paused while the tick was checking the remote.
+    let paused = || false;
+    let ctx = SyncCtx { on_pull: Some(&paused), ..fx.ctx("claude/a", Some(&sha1)) };
+    let t = sync::tick(ctx).await;
+    assert_eq!(t.state, SyncState::Paused { reason: PauseReason::User });
+    assert!(t.moved.is_none());
+    assert_eq!(fx.local_head(), sha1);
 }
 
 #[tokio::test]
