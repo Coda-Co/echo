@@ -48,22 +48,76 @@ and tells you.
 
 ## Develop
 
-Prerequisites: Rust (stable), Node 22, pnpm 9. On Linux you also need the
-webview and tray libraries:
+Day to day, run the app from your checkout with `pnpm app:dev` rather than
+reinstalling. Use the installer only for the checks listed under
+[What needs an installed build](#what-needs-an-installed-build).
+
+### One-time setup
+
+**Windows**
+
+1. Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+   with the **Desktop development with C++** workload.
+2. Install Rust with [rustup](https://rustup.rs) (the default MSVC toolchain).
+3. Install Node 22, then pnpm: `npm i -g pnpm`.
+4. WebView2 is already part of Windows 10 and 11.
+
+**macOS**: install the Xcode command line tools (`xcode-select --install`),
+Rust with rustup, Node 22 and pnpm.
+
+**Linux** (CI, or if you're curious): also install the webview and tray libraries:
 
 ```bash
 sudo apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
+Then, in the repo:
+
 ```bash
 pnpm install
 ```
 
+### Run the dev app
+
 ```bash
-pnpm tauri dev
+pnpm app:dev
 ```
 
-Checks (the same ones CI runs):
+This starts **Echo Dev**: the app built from your working tree, with its own
+name, tray entry and app ID (`com.coda.echo.dev`). It keeps its settings and
+seen-state in a separate folder from an installed Echo, and both can run at
+the same time.
+
+While it runs:
+
+- **UI changes** (`src/`) appear in the open window almost instantly, without
+  restarting the app.
+- **Rust changes** (`src-tauri/`, `crates/echo-core/`) recompile and relaunch
+  the app automatically. The first build takes a few minutes; after that,
+  expect roughly 5 to 40 seconds per change.
+
+The first `pnpm app:dev` opens an empty Echo Dev window; add a repo as usual.
+
+`pnpm tauri dev` also works, but it runs under the installed app's ID, so it
+shares the installed Echo's settings, and if Echo is already running it just
+brings that window forward instead of starting.
+
+### Ways to work on it
+
+**With Claude Code on your own machine.** Run `pnpm app:dev` in one
+terminal and Claude Code in another, in the same folder. As Claude edits files,
+the dev app reloads. Run the dev app yourself rather than asking Claude to
+start it: it's long-running and you'll want its output in front of you.
+
+**With cloud agents, using Echo itself.** Install a released Echo, add your
+local `echo` checkout to it, and sync the branch a cloud session is pushing to
+(`claude/...`). Run `pnpm app:dev` in that checkout. Each push lands in your
+checkout within seconds and Echo Dev reloads. This is the workflow Echo is
+built for, so you're also testing it as you go.
+
+### Checks
+
+These are the same checks CI runs:
 
 ```bash
 pnpm lint && pnpm typecheck && pnpm test
@@ -72,6 +126,25 @@ pnpm lint && pnpm typecheck && pnpm test
 ```bash
 cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
 ```
+
+The Rust integration tests in `crates/echo-core/tests/integration.rs` create
+real git repos in a temp folder, so they're the quickest way to check a change
+to sync behaviour without clicking through the app.
+
+### What needs an installed build
+
+A few things only behave properly in an installed app:
+
+- **Notifications.** On Windows the dev app's notifications may show under
+  PowerShell's name or not at all, because Windows ties them to an installed
+  app.
+- **Launch at login.** This is turned off in dev builds on purpose, so the
+  dev binary doesn't register itself to start with Windows.
+- **First launch.** The SmartScreen warning, the Start menu entry and the
+  installer itself.
+
+To get installers without making a release, run the **Release** workflow
+from the Actions tab and download them from the run's artefacts.
 
 ### Layout
 
