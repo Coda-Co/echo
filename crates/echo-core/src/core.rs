@@ -4,7 +4,8 @@
 
 use crate::branches::{self, PollCache};
 use crate::flags::{detect_install_command, FlagKind, FlagMatcher};
-use crate::git::{Git, GitError, GitErrorKind};
+use crate::git::{Git, GitError, GitErrorKind, Mode};
+use crate::github::{parse_github_remote, Gh, GitHubRepo, PullRequestSnapshot};
 use crate::interval::AdaptiveInterval;
 use crate::notify::{Note, Offer, RateLimiter};
 use crate::repo;
@@ -13,7 +14,7 @@ use crate::sync::{self, SwitchError, SyncCtx, TickResult};
 use crate::types::*;
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant, SystemTime};
@@ -51,6 +52,11 @@ pub enum CoreEvent {
         body: String,
     },
     SettingsChanged,
+    #[serde(rename_all = "camelCase")]
+    PullRequestsUpdated {
+        repo_id: String,
+        prs: PullRequestSnapshot,
+    },
 }
 
 pub trait EventSink: Send + Sync + 'static {
@@ -150,6 +156,11 @@ struct Runtime {
     poll_network_backoff: bool,
     /// Kind of the last blocked/error state we notified about (once per occurrence).
     last_block_notified: Option<String>,
+    /// origin on GitHub: `None` = not looked up yet, `Some(None)` = not GitHub.
+    github: Option<Option<GitHubRepo>>,
+    prs: PullRequestSnapshot,
+    /// When PRs were last listed, and the remote tips at that time.
+    prs_fetched: Option<(Instant, Option<BTreeMap<String, String>>)>,
 }
 
 struct RepoHandle {
@@ -337,6 +348,9 @@ impl Core {
                 poll_auth_paused: false,
                 poll_network_backoff: false,
                 last_block_notified: None,
+                github: None,
+                prs: PullRequestSnapshot::default(),
+                prs_fetched: None,
             }),
             wake_sync: Notify::new(),
             wake_poll: Notify::new(),
@@ -352,6 +366,7 @@ impl Core {
         tokio::spawn(async move {
             loop {
                 core.poll_once(&h2, false).await;
+                core.refresh_pull_requests(&h2).await;
                 let secs = {
                     let backoff = h2.rt().poll_network_backoff;
                     if backoff {
@@ -389,6 +404,65 @@ impl Core {
     // -----------------------------------------------------------------------
     // Loops
     // -----------------------------------------------------------------------
+
+    /// origin as a GitHub repo, looked up once per watcher.
+    async fn github_repo(&self, h: &RepoHandle) -> Option<GitHubRepo> {
+        if let Some(known) = h.rt().github.clone() {
+            return known;
+        }
+        let git = self.git().ok()?;
+        let url = git.run(&h.path, &["remote", "get-url", "origin"], Mode::Read).await.ok()?;
+        let repo = parse_github_remote(&url);
+        h.rt().github = Some(repo.clone());
+        if repo.is_some() {
+            self.emit(CoreEvent::ReposChanged);
+        }
+        repo
+    }
+
+    /// List open PRs through `gh` about once a minute, and right away when the
+    /// remote's branches moved. Runs outside the repo lock (no git involved).
+    async fn refresh_pull_requests(&self, h: &Arc<RepoHandle>) {
+        const PR_REFRESH: Duration = Duration::from_secs(60);
+        let Some(rc) = self.repo_config(&h.id) else { return };
+        if !rc.polling_enabled || !h.rt().available {
+            return;
+        }
+        let Some(gh_repo) = self.github_repo(h).await else { return };
+        let remote = h.rt().cache.remote.clone();
+        let due = match &h.rt().prs_fetched {
+            None => true,
+            Some((at, tips)) => at.elapsed() >= PR_REFRESH || (remote.is_some() && *tips != remote),
+        };
+        if !due {
+            return;
+        }
+        h.rt().prs_fetched = Some((Instant::now(), remote));
+        let snapshot = match Gh::discover() {
+            None => PullRequestSnapshot {
+                by_branch: BTreeMap::new(),
+                error: Some("Install the GitHub CLI (gh) and run `gh auth login` to see pull requests.".into()),
+            },
+            Some(gh) => match gh.open_pull_requests(&gh_repo).await {
+                Ok(by_branch) => PullRequestSnapshot { by_branch, error: None },
+                Err(e) => {
+                    log::warn!("pull requests {}: {e}", rc.display_name);
+                    // Keep showing the last good list through a transient failure.
+                    let by_branch = h.rt().prs.by_branch.clone();
+                    PullRequestSnapshot { by_branch, error: Some(e) }
+                }
+            },
+        };
+        let changed = {
+            let mut rt = h.rt();
+            let changed = rt.prs != snapshot;
+            rt.prs = snapshot.clone();
+            changed
+        };
+        if changed {
+            self.emit(CoreEvent::PullRequestsUpdated { repo_id: h.id.clone(), prs: snapshot });
+        }
+    }
 
     /// Returns false (and marks the repo unavailable) when the folder is gone.
     fn check_available(&self, h: &RepoHandle) -> bool {
@@ -746,18 +820,21 @@ impl Core {
             git_path: git.as_ref().ok().map(|g| g.path().display().to_string()),
             git_version: git.as_ref().ok().map(|g| g.version_string()),
             git_error: git.err().map(|e| e.message),
+            gh_path: Gh::discover().map(|g| g.path().display().to_string()),
         }
     }
 
     fn summary(&self, rc: &RepoConfig) -> RepoSummary {
         let h = lock(&self.0.repos).get(&rc.id).cloned();
-        let (available, sync, has_unseen) = match &h {
+        let (available, sync, has_unseen, github) = match &h {
             Some(h) => {
                 let has_unseen = self.has_unseen(h, &rc.branch_filter);
                 let rt = h.rt();
-                (rt.available, rt.sync.clone(), has_unseen)
+                (rt.available, rt.sync.clone(), has_unseen, rt.github.clone().flatten())
             }
-            None => (false, SyncStatus { branch: None, state: SyncState::Off, last_checked: None, head: None }, false),
+            None => {
+                (false, SyncStatus { branch: None, state: SyncState::Off, last_checked: None, head: None }, false, None)
+            }
         };
         let path = PathBuf::from(&rc.path);
         RepoSummary {
@@ -768,6 +845,7 @@ impl Core {
             sync,
             flags: self.read_state(&rc.id, |s| s.active_flags.clone()),
             install_command: rc.install_command.clone().or_else(|| detect_install_command(&path)),
+            github_url: github.map(|g| g.web_url()),
         }
     }
 
@@ -852,6 +930,24 @@ impl Core {
         }
         self.emit(CoreEvent::ReposChanged);
         Ok(self.summary(&merged))
+    }
+
+    pub fn get_pull_requests(&self, id: &str) -> CmdResult<PullRequestSnapshot> {
+        Ok(self.handle(id)?.rt().prs.clone())
+    }
+
+    /// The repo's page on GitHub.
+    pub fn github_url(&self, id: &str) -> CmdResult<String> {
+        let h = self.handle(id)?;
+        let repo = h.rt().github.clone().flatten();
+        repo.map(|r| r.web_url()).ok_or_else(|| CmdError::new(CmdErrorKind::NotFound, "origin isn't a GitHub repo"))
+    }
+
+    /// The open pull request for `branch`, if Echo knows of one.
+    pub fn pull_request_url(&self, id: &str, branch: &str) -> CmdResult<String> {
+        let h = self.handle(id)?;
+        let url = h.rt().prs.by_branch.get(branch).map(|p| p.url.clone());
+        url.ok_or_else(|| CmdError::not_found("pull request"))
     }
 
     pub fn get_branches(&self, id: &str) -> CmdResult<BranchSnapshot> {

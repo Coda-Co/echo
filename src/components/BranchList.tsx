@@ -8,6 +8,7 @@ import { Button, Spinner } from "./ui";
 
 export function BranchList({ repo }: { repo: RepoSummary }) {
   const snapshot = useEcho((s) => s.branches[repo.id]);
+  const prs = useEcho((s) => s.pullRequests[repo.id]?.byBranch);
   const { run, startSync } = useEcho.getState();
   const now = useNow(30_000);
   const [query, setQuery] = useState("");
@@ -92,6 +93,8 @@ export function BranchList({ repo }: { repo: RepoSummary }) {
               now={now}
               selected={b.name === selected}
               syncPaused={repo.sync.state.kind === "paused"}
+              pr={prs?.[b.name]}
+              onOpenPr={() => run(() => ipc.openPullRequest(repo.id, b.name))}
               onSwitch={() => startSync(repo.id, b.name)}
               onPreview={() => onPreview(b.name, b.status.kind !== "seen")}
             />

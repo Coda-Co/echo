@@ -108,6 +108,13 @@ function GlobalSettings() {
           {appInfo?.gitError ?? `Using git ${appInfo?.gitVersion} at ${appInfo?.gitPath}`}
         </p>
       </Section>
+      <Section title="GitHub">
+        <p className="text-zinc-500">
+          {appInfo?.ghPath
+            ? `Pull requests are listed with the GitHub CLI at ${appInfo.ghPath}. If they don't appear, run \`gh auth login\`.`
+            : "Install the GitHub CLI (gh) and run `gh auth login` to see open pull requests on branches."}
+        </p>
+      </Section>
       <p className="text-zinc-400">Echo {appInfo?.version}</p>
     </div>
   );

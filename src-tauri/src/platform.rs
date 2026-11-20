@@ -1,4 +1,4 @@
-//! "Open in Finder/Explorer" and "Open in terminal".
+//! "Open in Finder/Explorer", "Open in terminal", and links in the browser.
 
 use std::io;
 use std::path::Path;
@@ -42,4 +42,21 @@ pub fn open_in_file_manager(path: &Path) -> io::Result<()> {
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn open_in_terminal(path: &Path) -> io::Result<()> {
     spawn(Command::new("x-terminal-emulator").current_dir(path))
+}
+
+/// Open an https URL in the default browser. Callers validate the URL.
+#[cfg(target_os = "macos")]
+pub fn open_url(url: &str) -> io::Result<()> {
+    spawn(Command::new("open").arg(url))
+}
+
+#[cfg(windows)]
+pub fn open_url(url: &str) -> io::Result<()> {
+    // No shell involved, so `&` in query strings is passed through untouched.
+    spawn(Command::new("rundll32").arg("url.dll,FileProtocolHandler").arg(url))
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
+pub fn open_url(url: &str) -> io::Result<()> {
+    spawn(Command::new("xdg-open").arg(url))
 }

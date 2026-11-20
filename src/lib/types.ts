@@ -124,6 +124,8 @@ export interface RepoSummary {
   sync: SyncStatus;
   flags: ActiveFlag[];
   installCommand: string | null;
+  /** https://github.com/<owner>/<repo> when origin is on GitHub. */
+  githubUrl: string | null;
 }
 
 export interface NotificationPrefs {
@@ -148,6 +150,8 @@ export interface AppInfo {
   gitPath: string | null;
   gitVersion: string | null;
   gitError: string | null;
+  /** GitHub CLI used to list pull requests; null when not installed. */
+  ghPath: string | null;
 }
 
 export type CmdErrorKind = "dirty" | "untrackedInTheWay" | "git" | "notFound" | "invalid";
@@ -162,4 +166,17 @@ export interface DefaultPatterns {
   deps: string[];
   migrations: string[];
   env: string[];
+}
+
+export interface PullRequest {
+  number: number;
+  title: string;
+  url: string;
+  draft: boolean;
+}
+
+/** Open PRs keyed by head branch, from the GitHub CLI. */
+export interface PullRequestSnapshot {
+  byBranch: Record<string, PullRequest>;
+  error: string | null;
 }

@@ -215,6 +215,8 @@ pub struct RepoSummary {
     pub flags: Vec<ActiveFlag>,
     /// Install command (configured, or detected from lockfiles).
     pub install_command: Option<String>,
+    /// `https://github.com/<owner>/<repo>` when origin is on GitHub.
+    pub github_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -224,4 +226,6 @@ pub struct AppInfo {
     pub git_path: Option<String>,
     pub git_version: Option<String>,
     pub git_error: Option<String>,
+    /// GitHub CLI, used to list pull requests. `None` when not installed.
+    pub gh_path: Option<String>,
 }

@@ -26,13 +26,12 @@ export function useNow(ms = 1000): number {
 
 export type Badge = { label: string; tone: "accent" | "info" | "warn" | "muted" | "ok" };
 
-/** Badge for a branch row: synced > status > current. */
-export function branchBadge(b: BranchInfo, syncPaused = false): Badge | null {
+/** Badge for a branch row: status > current. The synced branch is marked by its icon instead. */
+export function branchBadge(b: BranchInfo): Badge | null {
   if (b.deleted) return { label: "deleted", tone: "muted" };
-  if (b.isSynced) return syncPaused ? { label: "paused", tone: "muted" } : { label: "synced", tone: "ok" };
   const s = statusBadge(b.status);
   if (s) return s;
-  if (b.isCurrent) return { label: "current", tone: "muted" };
+  if (b.isCurrent && !b.isSynced) return { label: "current", tone: "muted" };
   return null;
 }
 

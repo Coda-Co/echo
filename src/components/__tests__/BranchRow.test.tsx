@@ -41,10 +41,9 @@ describe("BranchRow", () => {
     [{ status: { kind: "unseen", count: 3 } }, "3 new", true],
     [{ status: { kind: "new" } }, "new", true],
     [{ status: { kind: "rewritten" } }, "rewritten", true],
-    [{ isSynced: true }, "synced", false],
     [{ isCurrent: true }, "current", false],
     [{ deleted: true, status: { kind: "new" } }, "deleted", false],
-    [{ isSynced: true, status: { kind: "unseen", count: 2 } }, "synced", true],
+    [{ isSynced: true, status: { kind: "unseen", count: 2 } }, "2 new", true],
   ] as [Partial<BranchInfo>, string, boolean][])("badge for %j is %s", (patch, label, dot) => {
     renderRow(patch);
     expect(screen.getByTestId("badge")).toHaveTextContent(label);
@@ -53,9 +52,35 @@ describe("BranchRow", () => {
 
   it("the synced branch shows as paused while sync is paused", () => {
     renderRow({ isSynced: true }, undefined, true);
-    expect(screen.getByTestId("badge")).toHaveTextContent("paused");
     expect(screen.getByRole("img", { name: "Sync paused" })).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "Synced" })).toBeNull();
+  });
+
+  it("shows an open PR and opens it without switching", async () => {
+    const onOpenPr = vi.fn();
+    const onSwitch = vi.fn();
+    render(
+      <ul>
+        <BranchRow
+          branch={base}
+          selected={false}
+          now={now}
+          pr={{ number: 42, title: "Add filters", url: "https://github.com/o/r/pull/42", draft: false }}
+          onOpenPr={onOpenPr}
+          onSwitch={onSwitch}
+          onPreview={vi.fn()}
+        />
+      </ul>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Open pull request #42 on GitHub" }));
+    expect(onOpenPr).toHaveBeenCalledOnce();
+    expect(onSwitch).not.toHaveBeenCalled();
+  });
+
+  it("the synced branch has no badge, just the sync icon", () => {
+    renderRow({ isSynced: true, isCurrent: true });
+    expect(screen.queryByTestId("badge")).toBeNull();
+    expect(screen.getByRole("img", { name: "Synced" })).toBeInTheDocument();
   });
 
   it("clicking the row switches to it", async () => {

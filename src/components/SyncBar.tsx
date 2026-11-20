@@ -4,7 +4,7 @@ import { copyText, relativeTime, shortSha, stateLabel, stateTone, useNow } from 
 import { useEcho } from "../lib/store";
 import type { ActiveFlag, FlagKind, RepoSummary, SyncEvent } from "../lib/types";
 import { BlockedPanel, type BlockedActions } from "./BlockedPanel";
-import { Button, Dot, PauseIcon, PlayIcon, Spinner } from "./ui";
+import { Button, Dot, GitHubIcon, PauseIcon, PlayIcon, Spinner } from "./ui";
 
 export function SyncBar({ repo }: { repo: RepoSummary }) {
   const { run, setPrompt, startSync, showToast } = useEcho.getState();
@@ -28,6 +28,7 @@ export function SyncBar({ repo }: { repo: RepoSummary }) {
           <Dot tone="muted" />
           <span className="text-zinc-600 dark:text-zinc-300">Not syncing.</span>
           <span className="text-xs text-zinc-500">Click a branch to check it out and keep it synced.</span>
+          <GitHubButton repo={repo} />
         </div>
         <Flags repo={repo} />
       </section>
@@ -70,6 +71,7 @@ export function SyncBar({ repo }: { repo: RepoSummary }) {
         >
           {paused ? <PlayIcon /> : <PauseIcon />}
         </Button>
+        <GitHubButton repo={repo} />
       </div>
       <div className="mt-0.5 pl-4 text-xs text-zinc-500" data-testid="sync-state">
         {stateLabel(state)}
@@ -147,5 +149,24 @@ function Flags({ repo }: { repo: RepoSummary }) {
         );
       })}
     </div>
+  );
+}
+
+/** Opens the repo on GitHub. Amber when pull requests can't be listed. */
+function GitHubButton({ repo }: { repo: RepoSummary }) {
+  const prError = useEcho((s) => s.pullRequests[repo.id]?.error ?? null);
+  const run = useEcho((s) => s.run);
+  if (!repo.githubUrl) return null;
+  const label = `Open ${repo.githubUrl.replace("https://", "")} in your browser`;
+  return (
+    <Button
+      variant="ghost"
+      aria-label="Open on GitHub"
+      title={prError ? `${label}\n\nPull requests unavailable: ${prError}` : label}
+      onClick={() => run(() => ipc.openOnGitHub(repo.id))}
+      className={`!h-6 ml-auto shrink-0 !px-1.5 ${prError ? "!text-amber-600" : ""}`}
+    >
+      <GitHubIcon />
+    </Button>
   );
 }

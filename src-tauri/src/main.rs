@@ -44,6 +44,9 @@ impl EventSink for TauriSink {
                 app.emit("flags-changed", serde_json::json!({ "repoId": repo_id, "flags": flags }))
             }
             CoreEvent::SettingsChanged => app.emit("settings-changed", ()),
+            CoreEvent::PullRequestsUpdated { repo_id, prs } => {
+                app.emit("pull-requests-updated", serde_json::json!({ "repoId": repo_id, "prs": prs }))
+            }
             // Notifications are informational only: they never change the
             // selected repo or branch.
             CoreEvent::Notify { title, body, .. } => {
@@ -56,7 +59,10 @@ impl EventSink for TauriSink {
         if let Err(e) = r {
             log::warn!("emit failed: {e}");
         }
-        if !matches!(event, CoreEvent::Notify { .. } | CoreEvent::FlagsChanged { .. }) {
+        if !matches!(
+            event,
+            CoreEvent::Notify { .. } | CoreEvent::FlagsChanged { .. } | CoreEvent::PullRequestsUpdated { .. }
+        ) {
             self.tray.request();
         }
     }
@@ -170,6 +176,9 @@ fn main() {
             commands::default_flag_patterns,
             commands::open_in_file_manager,
             commands::open_in_terminal,
+            commands::get_pull_requests,
+            commands::open_on_github,
+            commands::open_pull_request,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Echo");

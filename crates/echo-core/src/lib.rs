@@ -6,6 +6,7 @@ pub mod branches;
 pub mod core;
 pub mod flags;
 pub mod git;
+pub mod github;
 pub mod interval;
 pub mod notify;
 pub mod repo;

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { errorMessage, ipc, on } from "./ipc";
-import type { AppInfo, BranchSnapshot, CmdError, RepoSummary, Settings, SyncEvent } from "./types";
+import type { AppInfo, BranchSnapshot, CmdError, PullRequestSnapshot, RepoSummary, Settings, SyncEvent } from "./types";
 
 /** A pending "are you sure" prompt shown as a modal. */
 export type Prompt =
@@ -17,6 +17,7 @@ interface EchoState {
   repos: RepoSummary[];
   selectedId: string | null;
   branches: Record<string, BranchSnapshot>;
+  pullRequests: Record<string, PullRequestSnapshot>;
   lastEvent: Record<string, SyncEvent>;
   prompt: Prompt | null;
   toast: string | null;
@@ -40,6 +41,7 @@ export const useEcho = create<EchoState>((set, get) => ({
   repos: [],
   selectedId: null,
   branches: {},
+  pullRequests: {},
   lastEvent: {},
   prompt: null,
   toast: null,
@@ -56,6 +58,9 @@ export const useEcho = create<EchoState>((set, get) => ({
       ),
       on("flags-changed", ({ repoId, flags }) =>
         set((s) => ({ repos: s.repos.map((r) => (r.id === repoId ? { ...r, flags } : r)) })),
+      ),
+      on("pull-requests-updated", ({ repoId, prs }) =>
+        set((s) => ({ pullRequests: { ...s.pullRequests, [repoId]: prs } })),
       ),
       on("sync-event", ({ repoId, event }) => set((s) => ({ lastEvent: { ...s.lastEvent, [repoId]: event } }))),
       on("settings-changed", async () => set({ settings: await ipc.getSettings(), appInfo: await ipc.appInfo() })),
@@ -77,6 +82,12 @@ export const useEcho = create<EchoState>((set, get) => ({
       ipc
         .getBranches(id)
         .then((snapshot) => set((s) => ({ branches: { ...s.branches, [id]: snapshot } })))
+        .catch(() => {});
+    }
+    if (id && !get().pullRequests[id]) {
+      ipc
+        .getPullRequests(id)
+        .then((prs) => set((s) => ({ pullRequests: { ...s.pullRequests, [id]: prs } })))
         .catch(() => {});
     }
   },

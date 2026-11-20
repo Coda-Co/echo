@@ -1,6 +1,6 @@
 import { branchBadge, relativeTime } from "../lib/format";
-import type { BranchInfo } from "../lib/types";
-import { Badge, Button, Dot, PauseIcon, SyncIcon } from "./ui";
+import type { BranchInfo, PullRequest } from "../lib/types";
+import { Badge, Button, Dot, PauseIcon, PullRequestIcon, SyncIcon } from "./ui";
 
 interface Props {
   branch: BranchInfo;
@@ -9,14 +9,17 @@ interface Props {
   now: number;
   /** Syncing is paused (only affects the synced branch's row). */
   syncPaused?: boolean;
+  /** Open pull request with this branch as its head. */
+  pr?: PullRequest;
+  onOpenPr?: () => void;
   /** Row click: check out this branch and keep it synced. */
   onSwitch: () => void;
   /** History button: toggle the history panel for this branch. */
   onPreview: () => void;
 }
 
-export function BranchRow({ branch: b, selected, now, syncPaused = false, onSwitch, onPreview }: Props) {
-  const badge = branchBadge(b, syncPaused);
+export function BranchRow({ branch: b, selected, now, syncPaused = false, pr, onOpenPr, onSwitch, onPreview }: Props) {
+  const badge = branchBadge(b);
   const dot = !b.deleted && b.status.kind !== "seen";
   const canSwitch = !b.deleted && !b.isSynced;
   return (
@@ -46,6 +49,24 @@ export function BranchRow({ branch: b, selected, now, syncPaused = false, onSwit
             {b.name}
           </span>
           {badge && <Badge badge={badge} />}
+          {pr && !b.deleted && (
+            <button
+              type="button"
+              aria-label={`Open pull request #${pr.number}${pr.draft ? " (draft)" : ""} on GitHub`}
+              title={`${pr.draft ? "Draft PR" : "PR"} #${pr.number}: ${pr.title}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenPr?.();
+              }}
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-px text-[10px] font-semibold hover:underline ${
+                pr.draft
+                  ? "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
+                  : "bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-200"
+              }`}
+            >
+              <PullRequestIcon />#{pr.number}
+            </button>
+          )}
           <span className="ml-auto shrink-0 text-[11px] tabular-nums text-zinc-500">
             {b.committedAt ? relativeTime(b.committedAt * 1000, now) : ""}
           </span>

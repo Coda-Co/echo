@@ -11,6 +11,7 @@ import type {
   CommitSummary,
   DefaultPatterns,
   FlagKind,
+  PullRequestSnapshot,
   RepoConfig,
   RepoSummary,
   Settings,
@@ -61,6 +62,11 @@ export const ipc = {
   defaultFlagPatterns: () => invoke<DefaultPatterns>("default_flag_patterns"),
   openInFileManager: (id: string) => invoke<void>("open_in_file_manager", { id }),
   openInTerminal: (id: string) => invoke<void>("open_in_terminal", { id }),
+  getPullRequests: (repoId: string) => invoke<PullRequestSnapshot>("get_pull_requests", { repoId }),
+  /** Opens the repo's GitHub page in the browser (URL is built in Rust). */
+  openOnGitHub: (repoId: string) => invoke<void>("open_on_github", { repoId }),
+  /** Opens the open PR for a branch in the browser (URL is built in Rust). */
+  openPullRequest: (repoId: string, branch: string) => invoke<void>("open_pull_request", { repoId, branch }),
 };
 
 export interface EventPayloads {
@@ -70,6 +76,7 @@ export interface EventPayloads {
   "sync-event": { repoId: string; event: SyncEvent };
   "flags-changed": { repoId: string; flags: ActiveFlag[] };
   "settings-changed": null;
+  "pull-requests-updated": { repoId: string; prs: PullRequestSnapshot };
   /** Only sent after the user picks a branch in the tray menu that needs a decision. */
   "focus-repo": { repoId: string };
 }

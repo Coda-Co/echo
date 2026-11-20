@@ -2,6 +2,7 @@
 
 use crate::AppState;
 use echo_core::flags::{default_patterns, FlagKind};
+use echo_core::github::PullRequestSnapshot;
 use echo_core::store::{ActiveFlag, Config};
 use echo_core::types::*;
 use echo_core::{CmdError, CmdErrorKind};
@@ -152,4 +153,28 @@ pub fn open_in_file_manager(state: State<'_, AppState>, id: String) -> R<()> {
 #[tauri::command]
 pub fn open_in_terminal(state: State<'_, AppState>, id: String) -> R<()> {
     crate::platform::open_in_terminal(&repo_path(&state, &id)?).map_err(|e| invalid(e.to_string()))
+}
+
+#[tauri::command]
+pub fn get_pull_requests(state: State<'_, AppState>, repo_id: String) -> R<PullRequestSnapshot> {
+    state.core.get_pull_requests(&repo_id)
+}
+
+/// URLs are built in Rust from the repo's origin and gh's output; the webview
+/// can only ask for "this repo" or "this branch's PR", never an arbitrary URL.
+fn open_github(url: &str) -> R<()> {
+    if !url.starts_with("https://github.com/") {
+        return Err(invalid("not a GitHub link"));
+    }
+    crate::platform::open_url(url).map_err(|e| invalid(e.to_string()))
+}
+
+#[tauri::command]
+pub fn open_on_github(state: State<'_, AppState>, repo_id: String) -> R<()> {
+    open_github(&state.core.github_url(&repo_id)?)
+}
+
+#[tauri::command]
+pub fn open_pull_request(state: State<'_, AppState>, repo_id: String, branch: String) -> R<()> {
+    open_github(&state.core.pull_request_url(&repo_id, &branch)?)
 }
