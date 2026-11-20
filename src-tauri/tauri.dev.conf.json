@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Echo Dev",
+  "identifier": "com.coda.echo.dev",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Echo Dev",
+        "width": 900,
+        "height": 600,
+        "minWidth": 640,
+        "minHeight": 400,
+        "visible": false,
+        "center": true
+      }
+    ]
+  }
+}

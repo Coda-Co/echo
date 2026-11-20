@@ -18,7 +18,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let builder = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
         .icon_as_template(template)
-        .tooltip("Echo")
+        .tooltip(app_name(app))
         .menu(&build_menu(app, &TrayModel { icon: TrayIconState::Idle, synced: vec![], unseen: vec![] })?)
         .on_menu_event(on_menu_event)
         .on_tray_icon_event(|tray, event| {
@@ -79,8 +79,8 @@ fn refresh(app: &AppHandle) {
     let _ = tray.set_icon(Some(icon));
     let _ = tray.set_icon_as_template(template);
     let tooltip = match model.synced.first() {
-        Some(s) => format!("Echo · {} · {}", s.branch, s.description),
-        None => "Echo".into(),
+        Some(s) => format!("{} · {} · {}", app_name(app), s.branch, s.description),
+        None => app_name(app),
     };
     let _ = tray.set_tooltip(Some(tooltip));
     match build_menu(app, &model) {
@@ -121,9 +121,14 @@ fn build_menu(app: &AppHandle, model: &TrayModel) -> tauri::Result<Menu<tauri::W
         }
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
-    menu.append(&item("open", "Open Echo", true)?)?;
-    menu.append(&item("quit", "Quit Echo", true)?)?;
+    menu.append(&item("open", &format!("Open {}", app_name(app)), true)?)?;
+    menu.append(&item("quit", &format!("Quit {}", app_name(app)), true)?)?;
     Ok(menu)
+}
+
+/// "Echo", or "Echo Dev" for `pnpm app:dev`, so the two are easy to tell apart.
+fn app_name(app: &AppHandle) -> String {
+    app.package_info().name.clone()
 }
 
 fn capitalise(s: &str) -> String {
