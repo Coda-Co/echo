@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ipc } from "../lib/ipc";
 import { matchesFilter, relativeTime, shortSha, useNow } from "../lib/format";
 import { useEcho } from "../lib/store";
@@ -92,7 +92,7 @@ export function BranchList({ repo }: { repo: RepoSummary }) {
               now={now}
               selected={b.name === selected}
               onClick={() => onClick(b.name, !b.deleted && b.status.kind !== "seen")}
-              onDoubleClick={() => !b.deleted && !b.isSynced && startSync(repo.id, b.name)}
+              onSwitch={() => startSync(repo.id, b.name)}
             />
           ))}
         </ul>
@@ -101,7 +101,6 @@ export function BranchList({ repo }: { repo: RepoSummary }) {
             repoId={repo.id}
             name={selectedBranch.name}
             sha={selectedBranch.sha}
-            isSynced={selectedBranch.isSynced}
             deleted={selectedBranch.deleted}
             onClose={() => setSelected(null)}
           />
@@ -160,13 +159,12 @@ function BranchDetail(props: {
   repoId: string;
   name: string;
   sha: string;
-  isSynced: boolean;
   deleted: boolean;
   onClose: () => void;
 }) {
-  const { repoId, name, sha, isSynced, deleted, onClose } = props;
+  const { repoId, name, sha, deleted, onClose } = props;
   const [commits, setCommits] = useState<CommitSummary[] | null>(null);
-  const startSync = useEcho((s) => s.startSync);
+  const [width, setWidth] = usePanelWidth();
   const now = useNow(30_000);
 
   useEffect(() => {
@@ -185,20 +183,17 @@ function BranchDetail(props: {
   return (
     <aside
       aria-label={`Details for ${name}`}
-      className="flex w-72 shrink-0 flex-col border-l border-zinc-200 bg-zinc-50/60 dark:border-zinc-700 dark:bg-zinc-900/60"
+      style={{ width, maxWidth: `calc(100% - ${LIST_MIN_WIDTH}px)` }}
+      className="relative flex shrink-0 flex-col border-l border-zinc-200 bg-zinc-50/60 dark:border-zinc-700 dark:bg-zinc-900/60"
     >
+      <ResizeHandle width={width} onResize={setWidth} />
       <div className="flex items-start gap-2 border-b border-zinc-200 p-3 dark:border-zinc-700">
         <div className="min-w-0 flex-1 break-all font-mono text-xs font-semibold">{name}</div>
         <button aria-label="Close details" className="text-zinc-400 hover:text-zinc-700" onClick={onClose}>
           ✕
         </button>
       </div>
-      <div className="p-3">
-        <Button variant="primary" disabled={isSynced || deleted} onClick={() => startSync(repoId, name)}>
-          {isSynced ? "Syncing this branch" : "Sync this branch"}
-        </Button>
-      </div>
-      <div className="px-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Recent commits</div>
+      <div className="px-3 pt-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Recent commits</div>
       <ol className="min-h-0 flex-1 overflow-y-auto px-3 py-1">
         {commits === null && !deleted && (
           <li className="py-2">
@@ -215,5 +210,62 @@ function BranchDetail(props: {
         ))}
       </ol>
     </aside>
+  );
+}
+
+const PANEL_DEFAULT_WIDTH = 400;
+const PANEL_MIN_WIDTH = 260;
+const LIST_MIN_WIDTH = 280;
+const PANEL_WIDTH_KEY = "echo.branchDetailWidth";
+
+function clampWidth(w: number, container?: number) {
+  const max = container ? container - LIST_MIN_WIDTH : Infinity;
+  return Math.round(Math.max(PANEL_MIN_WIDTH, Math.min(w, max)));
+}
+
+/** Preview panel width, remembered across selections and restarts. */
+function usePanelWidth() {
+  const [width, setWidth] = useState(() => {
+    const stored = Number(localStorage.getItem(PANEL_WIDTH_KEY));
+    return stored >= PANEL_MIN_WIDTH ? stored : PANEL_DEFAULT_WIDTH;
+  });
+  useEffect(() => localStorage.setItem(PANEL_WIDTH_KEY, String(width)), [width]);
+  return [width, setWidth] as const;
+}
+
+/** Drag handle on the panel's left edge. Arrow keys resize too; double-click resets. */
+function ResizeHandle({ width, onResize }: { width: number; onResize: (w: number) => void }) {
+  const drag = useRef<{ x: number; w: number; container: number } | null>(null);
+  const container = (el: HTMLElement) => el.parentElement?.parentElement?.clientWidth;
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize branch preview"
+      aria-valuenow={width}
+      tabIndex={0}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        drag.current = { x: e.clientX, w: width, container: container(e.currentTarget) ?? 0 };
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current;
+        if (d) onResize(clampWidth(d.w + d.x - e.clientX, d.container || undefined));
+      }}
+      onPointerUp={() => (drag.current = null)}
+      onPointerCancel={() => (drag.current = null)}
+      onDoubleClick={() => onResize(PANEL_DEFAULT_WIDTH)}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 64 : 16;
+        const delta = e.key === "ArrowLeft" ? step : e.key === "ArrowRight" ? -step : 0;
+        if (delta) {
+          e.preventDefault();
+          onResize(clampWidth(width + delta, container(e.currentTarget)));
+        }
+      }}
+      className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize outline-none hover:bg-blue-500/30 focus-visible:bg-blue-500/40 active:bg-blue-500/40"
+    />
   );
 }

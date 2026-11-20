@@ -17,7 +17,7 @@ const base: BranchInfo = {
   deleted: false,
 };
 
-function renderRow(b: Partial<BranchInfo>, handlers = { onClick: vi.fn(), onDoubleClick: vi.fn() }) {
+function renderRow(b: Partial<BranchInfo>, handlers = { onClick: vi.fn(), onSwitch: vi.fn() }) {
   render(
     <ul>
       <BranchRow branch={{ ...base, ...b }} selected={false} now={now} {...handlers} />
@@ -51,12 +51,22 @@ describe("BranchRow", () => {
     expect(!!screen.queryByLabelText("Unseen activity")).toBe(dot);
   });
 
-  it("forwards clicks and double-clicks", async () => {
+  it("clicking the row previews it without switching", async () => {
     const h = renderRow({});
-    const row = screen.getByTestId("branch-claude/add-filters");
-    await userEvent.click(row);
+    await userEvent.click(screen.getByTestId("branch-claude/add-filters"));
     expect(h.onClick).toHaveBeenCalled();
-    await userEvent.dblClick(row);
-    expect(h.onDoubleClick).toHaveBeenCalled();
+    expect(h.onSwitch).not.toHaveBeenCalled();
+  });
+
+  it("Switch switches without also toggling the preview", async () => {
+    const h = renderRow({});
+    await userEvent.click(screen.getByRole("button", { name: "Switch to claude/add-filters" }));
+    expect(h.onSwitch).toHaveBeenCalledOnce();
+    expect(h.onClick).not.toHaveBeenCalled();
+  });
+
+  it.each([[{ isSynced: true }], [{ deleted: true }]] as [Partial<BranchInfo>][])("no Switch button for %j", (patch) => {
+    renderRow(patch);
+    expect(screen.queryByRole("button", { name: /Switch to/ })).toBeNull();
   });
 });

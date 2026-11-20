@@ -12,8 +12,9 @@ Internal Coda tool. macOS (Apple Silicon and Intel) and Windows x64.
 
 1. Cloud agents each push to their own branch (`claude/...`).
 2. You run the dev server from your normal checkout, in your own terminal.
-3. Echo shows an activity dot on branches with new commits. Double-click one
-   to switch the checkout to it and keep it fast-forwarded.
+3. Echo shows an activity dot on branches with new commits. Click one to
+   preview its recent commits, then press **Switch** on its row to check it
+   out and keep it fast-forwarded.
 
 Echo never silently loses work. If the checkout has local changes, local
 commits, or untracked files in the way, sync stops and the sync bar explains

@@ -27,7 +27,7 @@ export function SyncBar({ repo }: { repo: RepoSummary }) {
         <div className="flex items-center gap-2 text-sm">
           <Dot tone="muted" />
           <span className="text-zinc-600 dark:text-zinc-300">Not syncing.</span>
-          <span className="text-xs text-zinc-500">Double-click a branch, or select it and press Sync this branch.</span>
+          <span className="text-xs text-zinc-500">Select a branch to preview it, then press Switch to check it out and keep it synced.</span>
         </div>
         <Flags repo={repo} />
       </section>
@@ -70,12 +70,6 @@ export function SyncBar({ repo }: { repo: RepoSummary }) {
               Pause
             </Button>
           )}
-          <Button disabled={busy || working || paused} onClick={() => act(() => ipc.syncNow(id))}>
-            Sync now
-          </Button>
-          <Button disabled={busy || working} onClick={() => act(() => ipc.stopSync(id))}>
-            Stop syncing
-          </Button>
         </div>
       </div>
       <div className="mt-0.5 pl-4 text-xs text-zinc-500" data-testid="sync-state">
@@ -98,9 +92,6 @@ function LastEvent({ event, now }: { event: SyncEvent; now: number }) {
       text = event.reset
         ? `Force-pushed: reset to ${shortSha(event.to)}`
         : `Pulled ${event.count} commit${event.count === 1 ? "" : "s"}: ${event.subject}`;
-      break;
-    case "switched":
-      text = `Switched${event.from ? ` from ${event.from}` : ""} to ${shortSha(event.sha)}`;
       break;
     default:
       return null;
