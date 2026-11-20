@@ -1,5 +1,6 @@
 //! Types shared with the UI over IPC. All serialise as camelCase JSON.
 
+use crate::devserver::DevServerStatus;
 use crate::flags::FlagKind;
 use crate::git::GitError;
 use crate::store::{ActiveFlag, RepoConfig};
@@ -217,6 +218,9 @@ pub struct RepoSummary {
     pub install_command: Option<String>,
     /// `https://github.com/<owner>/<repo>` when origin is on GitHub.
     pub github_url: Option<String>,
+    pub dev_server: DevServerStatus,
+    /// Dev command guessed from package.json, offered when nothing has been run.
+    pub suggested_dev_command: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]

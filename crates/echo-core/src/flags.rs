@@ -125,9 +125,42 @@ pub fn detect_install_command(repo: &Path) -> Option<String> {
     Some(cmd.to_string())
 }
 
+/// A dev server command from package.json scripts (`dev`, else `start`),
+/// run with the repo's package manager.
+pub fn detect_dev_command(repo: &Path) -> Option<String> {
+    let pkg = std::fs::read_to_string(repo.join("package.json")).ok()?;
+    let pkg: serde_json::Value = serde_json::from_str(&pkg).ok()?;
+    let scripts = pkg.get("scripts")?.as_object()?;
+    let script = ["dev", "start"].into_iter().find(|s| scripts.contains_key(*s))?;
+    let has = |f: &str| repo.join(f).is_file();
+    let runner = if has("pnpm-lock.yaml") {
+        "pnpm"
+    } else if has("bun.lockb") || has("bun.lock") {
+        "bun run"
+    } else if has("yarn.lock") {
+        "yarn"
+    } else {
+        "npm run"
+    };
+    Some(format!("{runner} {script}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dev_command_from_package_json() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(detect_dev_command(dir.path()), None);
+        std::fs::write(dir.path().join("package.json"), r#"{"scripts":{"start":"node ."}}"#).unwrap();
+        assert_eq!(detect_dev_command(dir.path()).as_deref(), Some("npm run start"));
+        std::fs::write(dir.path().join("package.json"), r#"{"scripts":{"start":"x","dev":"vite"}}"#).unwrap();
+        std::fs::write(dir.path().join("pnpm-lock.yaml"), "").unwrap();
+        assert_eq!(detect_dev_command(dir.path()).as_deref(), Some("pnpm dev"));
+        std::fs::write(dir.path().join("package.json"), "{}").unwrap();
+        assert_eq!(detect_dev_command(dir.path()), None);
+    }
 
     fn files(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()

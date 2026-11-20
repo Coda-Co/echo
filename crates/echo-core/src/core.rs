@@ -3,7 +3,8 @@
 //! an [`EventSink`].
 
 use crate::branches::{self, PollCache};
-use crate::flags::{detect_install_command, FlagKind, FlagMatcher};
+use crate::devserver::{DevServerSnapshot, DevServerStatus, DevServers};
+use crate::flags::{detect_dev_command, detect_install_command, FlagKind, FlagMatcher};
 use crate::git::{Git, GitError, GitErrorKind, Mode};
 use crate::github::{parse_github_remote, Gh, GitHubRepo, PullRequestSnapshot};
 use crate::interval::AdaptiveInterval;
@@ -56,6 +57,18 @@ pub enum CoreEvent {
     PullRequestsUpdated {
         repo_id: String,
         prs: PullRequestSnapshot,
+    },
+    /// Terminal output from a repo's dev server. `seq` increases by one per chunk.
+    #[serde(rename_all = "camelCase")]
+    DevServerOutput {
+        repo_id: String,
+        seq: u64,
+        data: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    DevServerChanged {
+        repo_id: String,
+        status: DevServerStatus,
     },
 }
 
@@ -193,6 +206,7 @@ struct Inner {
     limiter: Mutex<RateLimiter>,
     state_dirty: Notify,
     app_version: String,
+    dev: DevServers,
 }
 
 /// Cheap to clone handle to the core.
@@ -221,6 +235,7 @@ impl Core {
             state: Mutex::new(state),
             git: RwLock::new(git),
             repos: Mutex::new(HashMap::new()),
+            dev: DevServers::new(sink.clone()),
             sink,
             limiter: Mutex::new(RateLimiter::default()),
             state_dirty: Notify::new(),
@@ -230,6 +245,7 @@ impl Core {
         for rc in repos {
             core.spawn_watcher(&rc);
         }
+        core.0.dev.warm_up();
         core.spawn_persister();
         core.spawn_clock_watcher();
         core
@@ -240,6 +256,11 @@ impl Core {
     }
 
     fn emit(&self, e: CoreEvent) {
+        if let CoreEvent::SyncEvent { repo_id, event } = &e {
+            if let Some(text) = dev_marker(event) {
+                self.0.dev.marker(repo_id, &text);
+            }
+        }
         self.0.sink.emit(e);
     }
 
@@ -846,6 +867,8 @@ impl Core {
             flags: self.read_state(&rc.id, |s| s.active_flags.clone()),
             install_command: rc.install_command.clone().or_else(|| detect_install_command(&path)),
             github_url: github.map(|g| g.web_url()),
+            dev_server: self.0.dev.status(&rc.id),
+            suggested_dev_command: detect_dev_command(&path),
         }
     }
 
@@ -878,6 +901,7 @@ impl Core {
     }
 
     pub fn remove_repo(&self, id: &str) -> CmdResult<()> {
+        self.0.dev.forget(id);
         if let Some(h) = lock(&self.0.repos).remove(id) {
             let _ = h.cancel.send(true);
         }
@@ -1287,12 +1311,113 @@ impl Core {
         TrayModel { icon, synced, unseen: unseen.into_iter().take(5).map(|(_, u)| u).collect() }
     }
 
-    /// Stop all watchers (used by tests and on quit).
+    // ---- Dev server ----
+
+    fn dev_cwd(&self, id: &str) -> CmdResult<PathBuf> {
+        let rc = self.repo_config(id).ok_or_else(|| CmdError::not_found("repo"))?;
+        let path = PathBuf::from(rc.path);
+        if !path.is_dir() {
+            return Err(CmdError::new(CmdErrorKind::Invalid, "The repo folder is missing."));
+        }
+        Ok(path)
+    }
+
+    /// Run `command` from the repo root and remember it in the recent list.
+    pub async fn dev_server_start(&self, id: &str, command: &str, cols: u16, rows: u16) -> CmdResult<DevServerStatus> {
+        let command = command.trim();
+        if command.is_empty() {
+            return Err(CmdError::new(CmdErrorKind::Invalid, "Type a command to run."));
+        }
+        let cwd = self.dev_cwd(id)?;
+        let status = self
+            .0
+            .dev
+            .start(id, &cwd, command, cols, rows)
+            .await
+            .map_err(|e| CmdError::new(CmdErrorKind::Invalid, e))?;
+        self.with_repo_config(id, |r| r.dev_commands.record(command, store::now_ms()));
+        self.emit(CoreEvent::ReposChanged);
+        Ok(status)
+    }
+
+    pub fn dev_server_stop(&self, id: &str) -> CmdResult<DevServerStatus> {
+        self.0.dev.stop(id).map_err(|e| CmdError::new(CmdErrorKind::Invalid, e))
+    }
+
+    /// Stop if running, then start again with the same command.
+    pub async fn dev_server_restart(&self, id: &str, cols: u16, rows: u16) -> CmdResult<DevServerStatus> {
+        let cwd = self.dev_cwd(id)?;
+        self.0.dev.restart(id, &cwd, cols, rows).await.map_err(|e| CmdError::new(CmdErrorKind::Invalid, e))
+    }
+
+    pub fn dev_server_write(&self, id: &str, data: &str) -> CmdResult<()> {
+        self.0.dev.write(id, data).map_err(|e| CmdError::new(CmdErrorKind::Invalid, e))
+    }
+
+    pub fn dev_server_resize(&self, id: &str, cols: u16, rows: u16) -> CmdResult<()> {
+        self.0.dev.resize(id, cols, rows).map_err(|e| CmdError::new(CmdErrorKind::Invalid, e))
+    }
+
+    pub fn dev_server_snapshot(&self, id: &str) -> DevServerSnapshot {
+        self.0.dev.snapshot(id)
+    }
+
+    /// The local URL the running server printed, if any.
+    pub fn dev_server_url(&self, id: &str) -> CmdResult<String> {
+        self.0
+            .dev
+            .status(id)
+            .url()
+            .map(str::to_string)
+            .ok_or_else(|| CmdError::new(CmdErrorKind::Invalid, "The dev server hasn't printed a local URL."))
+    }
+
+    pub fn pin_dev_command(&self, id: &str, command: &str, name: &str) -> CmdResult<RepoSummary> {
+        let (command, name) = (command.trim(), name.trim());
+        if command.is_empty() {
+            return Err(CmdError::new(CmdErrorKind::Invalid, "Nothing to pin."));
+        }
+        let name = if name.is_empty() { command } else { name };
+        let rc = self
+            .with_repo_config(id, |r| r.dev_commands.pin(command, name).then(|| r.clone()))
+            .ok_or_else(|| CmdError::not_found("repo"))?
+            .ok_or_else(|| CmdError::new(CmdErrorKind::Invalid, "Too many pinned commands; unpin one first."))?;
+        self.emit(CoreEvent::ReposChanged);
+        Ok(self.summary(&rc))
+    }
+
+    pub fn unpin_dev_command(&self, id: &str, command: &str) -> CmdResult<RepoSummary> {
+        let rc = self
+            .with_repo_config(id, |r| {
+                r.dev_commands.unpin(command);
+                r.clone()
+            })
+            .ok_or_else(|| CmdError::not_found("repo"))?;
+        self.emit(CoreEvent::ReposChanged);
+        Ok(self.summary(&rc))
+    }
+
+    /// Stop all watchers and dev servers (used by tests and on quit).
     pub fn shutdown(&self) {
         for h in lock(&self.0.repos).values() {
             let _ = h.cancel.send(true);
         }
+        self.0.dev.shutdown();
         self.flush();
+    }
+}
+
+/// The marker Echo writes into a running dev server's output for a sync event.
+fn dev_marker(event: &SyncEvent) -> Option<String> {
+    match &event.kind {
+        SyncEventKind::Pulled { reset: true, to, .. } => {
+            Some(format!("{} was force-pushed; reset to {}", event.branch, &to[..to.len().min(7)]))
+        }
+        SyncEventKind::Pulled { count, .. } => {
+            Some(format!("pulled {count} commit{} on {}", if *count == 1 { "" } else { "s" }, event.branch))
+        }
+        SyncEventKind::Switched { to, .. } => Some(format!("switched to {to}")),
+        _ => None,
     }
 }
 

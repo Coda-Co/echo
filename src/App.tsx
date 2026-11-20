@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { BranchList } from "./components/BranchList";
+import { DevServerPanel, DevServerStatusLine } from "./components/DevServerPanel";
 import { PromptDialog } from "./components/PromptDialog";
 import { RepoSidebar, UnavailableRepo } from "./components/RepoSidebar";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -13,6 +14,7 @@ export function App() {
   const repoCount = useEcho((s) => s.repos.length);
   const appInfo = useEcho((s) => s.appInfo);
   const toast = useEcho((s) => s.toast);
+  const devPanelOpen = useEcho((s) => s.devPanelOpen);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -51,6 +53,7 @@ export function App() {
             <>
               <SyncBar repo={repo} />
               <BranchList repo={repo} />
+              {devPanelOpen && <DevServerPanel repo={repo} />}
             </>
           ) : (
             <UnavailableRepo repo={repo} />
@@ -58,7 +61,8 @@ export function App() {
         ) : (
           <EmptyState hasRepos={repoCount > 0} />
         )}
-        <footer className="flex items-center justify-end border-t border-zinc-200 px-3 py-1 dark:border-zinc-700">
+        <footer className="flex items-center justify-end gap-2 border-t border-zinc-200 px-3 py-1 dark:border-zinc-700">
+          {repo?.available && !devPanelOpen && <DevServerStatusLine repo={repo} />}
           <Button variant="ghost" onClick={() => useEcho.getState().openSettings(repo ? "repo" : "global")}>
             ⚙ Settings
           </Button>

@@ -119,3 +119,17 @@ export async function copyText(text: string): Promise<void> {
 export function matchesFilter(name: string, filter: { mode: "all" | "prefix"; prefix?: string }): boolean {
   return filter.mode === "all" || name.startsWith(filter.prefix ?? "");
 }
+
+/** "45s", "14m", "1h 3m". */
+export function shortDuration(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+}
+
+/** ":5173" from "http://localhost:5173/". */
+export function portLabel(url: string): string {
+  const m = /:(\d+)(?:\/|$)/.exec(url.replace(/^https?:\/\//, ""));
+  return m ? `:${m[1]}` : url;
+}

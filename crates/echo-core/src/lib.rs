@@ -4,6 +4,7 @@
 
 pub mod branches;
 pub mod core;
+pub mod devserver;
 pub mod flags;
 pub mod git;
 pub mod github;

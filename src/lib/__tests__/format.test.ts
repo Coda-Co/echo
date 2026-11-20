@@ -25,3 +25,14 @@ describe("format", () => {
     expect(matchesFilter("main", { mode: "all" })).toBe(true);
   });
 });
+
+describe("dev server labels", async () => {
+  const { portLabel, shortDuration } = await import("../format");
+  it("shortDuration and portLabel", () => {
+    expect(shortDuration(45_000)).toBe("45s");
+    expect(shortDuration(14 * 60_000 + 5_000)).toBe("14m");
+    expect(shortDuration(63 * 60_000)).toBe("1h 3m");
+    expect(portLabel("http://localhost:5173/")).toBe(":5173");
+    expect(portLabel("https://127.0.0.1:8443/app")).toBe(":8443");
+  });
+});

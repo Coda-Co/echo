@@ -168,3 +168,47 @@ export function PullRequestIcon({ className = "" }: { className?: string }) {
     </svg>
   );
 }
+
+/** Prompt glyph marking a repo whose dev server is running. */
+export function TerminalIcon({ title, className = "" }: { title?: string; className?: string }) {
+  return (
+    <svg {...iconA11y(title)} width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`}>
+      {title && <title>{title}</title>}
+      <path d="M2 3.5 4.75 6 2 8.5M6.25 9h4" />
+    </svg>
+  );
+}
+
+export function PinIcon({ filled = false, className = "" }: { filled?: boolean; className?: string }) {
+  return (
+    <svg aria-hidden width="11" height="11" viewBox="0 0 12 12" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" className={`shrink-0 ${className}`}>
+      <path d="M4 1.25h4l-.75 3 2 1.75h-6.5l2-1.75z" />
+      <path d="M6 6v4.75" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function StopIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg aria-hidden width="9" height="9" viewBox="0 0 10 10" fill="currentColor" className={`shrink-0 ${className}`}>
+      <rect x="1" y="1" width="8" height="8" rx="1.25" />
+    </svg>
+  );
+}
+
+export function RestartIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg aria-hidden width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`}>
+      <path d="M10 6a4 4 0 1 1-1.2-2.85" />
+      <path d="M9.5 1.5v2.25H7.25" />
+    </svg>
+  );
+}
+
+export function ChevronIcon({ up = false, className = "" }: { up?: boolean; className?: string }) {
+  return (
+    <svg aria-hidden width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`}>
+      <path d={up ? "M3 7.5 6 4.5l3 3" : "M3 4.5 6 7.5l3-3"} />
+    </svg>
+  );
+}

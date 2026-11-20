@@ -13,7 +13,8 @@ Internal Coda tool. macOS (Apple Silicon and Intel) and Windows x64.
 ## How it works
 
 1. Cloud agents each push to their own branch (`claude/...`).
-2. You run the dev server from your normal checkout, in your own terminal.
+2. You run the dev server from your normal checkout, either in Echo's dev
+   server panel or in your own terminal.
 3. Echo shows an activity dot on branches with new commits. Click one to
    switch the checkout to it and keep it fast-forwarded, or hover it and
    press **History** to see its recent commits without switching.
@@ -30,6 +31,31 @@ operates on the repo you add, not a separate worktree.
 After a pull or switch that touches dependency manifests, migrations or
 `.env.example`, Echo raises a flag (click it to copy `pnpm install` or
 whatever your install command is).
+
+### Dev server panel
+
+The panel under the branch list runs one command per repo from the repo root
+and shows its output in a terminal, so you can watch hot-reloads without
+switching windows. Type into the terminal as usual (Vite's `r` and `o`
+shortcuts, prompts and Ctrl+C all work).
+
+- **Start** with any command. The field is pre-filled with the last one you
+  ran (or the `dev` script from `package.json`), so changing flags such as
+  `--agents=planner,reviewer` is a quick edit.
+- **Recent and pinned commands.** Press ↑/↓ or the arrow in the field to pick
+  one. Pin a recent command and name it ("all agents") to keep it at the top.
+- **Restart** reruns exactly the command that's running. **Stop** stops the
+  server and everything it started (workers, agents), so the port is freed.
+- When Echo pulls or switches branch, it writes a line such as
+  `── echo · pulled 2 commits on claude/… ──` into the output, so you can see
+  which push caused a reload or a crash.
+- Collapse the panel to a one-line status in the footer. The sidebar shows a
+  terminal icon for repos with a running server, red if it crashed.
+
+Commands run in your login shell's environment (read once when Echo starts),
+so tools set up in `.zshrc` or `.zprofile`, such as nvm and pnpm, are on the
+`PATH`. Closing the window keeps servers running in the background; quitting
+Echo stops them.
 
 ## Install (unsigned builds)
 
@@ -162,6 +188,7 @@ crates/echo-core/     The engine. No UI dependencies, so it's testable anywhere.
   src/branches.rs     branch poll: ls-remote, fetch on change, unseen counts
   src/sync.rs         sync state machine: tick, switch, discard, reset, move aside
   src/core.rs         per-repo watchers (poll + sync loops), IPC operations, events
+  src/devserver.rs    dev server per repo: pseudo-terminal, scrollback, stopping the process tree
   src/flags.rs        dependency / migration / env change flags
   src/store.rs        config.json and state.json
   src/interval.rs     adaptive sync interval
@@ -173,8 +200,10 @@ src/                  React + TypeScript UI (Vite, Tailwind, Zustand)
 
 All git work runs in Rust through the system `git` CLI. The UI calls typed
 commands (`src/lib/ipc.ts`) and listens for events (`branches-updated`,
-`sync-status-changed`, `sync-event`, `flags-changed`, `repos-changed`). No
-shell access is exposed to the webview.
+`sync-status-changed`, `sync-event`, `flags-changed`, `repos-changed`,
+`dev-server-output`, `dev-server-changed`). The only process the webview can
+start is a repo's dev server command, run from the repo root; recent and
+pinned commands are stored per repo in `config.json`.
 
 Settings and seen-state live in the app data directory as `config.json` and
 `state.json` (macOS: `~/Library/Application Support/com.coda.echo`, Windows:
@@ -193,3 +222,5 @@ release.
 - Notifications are informational. Activity never changes the selected repo
   or branch: it shows as dots until you pick what to look at.
 - Only the `origin` remote is watched. Submodules and LFS get no special handling.
+- The dev server panel runs one command per repo. On Windows commands run
+  through `cmd.exe`, so double quotes inside a command may not survive.

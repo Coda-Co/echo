@@ -114,6 +114,39 @@ export interface RepoConfig {
   installCommand?: string;
   migrateCommand?: string;
   flagPatterns?: FlagPatterns;
+  devCommands?: DevCommands;
+}
+
+export interface DevCommands {
+  /** Newest first. */
+  recent: { command: string; at: number }[];
+  pinned: PinnedDevCommand[];
+}
+
+export interface PinnedDevCommand {
+  name: string;
+  command: string;
+}
+
+export type DevServerStatus =
+  | { kind: "idle" }
+  | { kind: "running"; command: string; startedAt: number; url: string | null }
+  | { kind: "stopping"; command: string; startedAt: number; url: string | null }
+  | {
+      kind: "exited";
+      command: string;
+      startedAt: number;
+      endedAt: number;
+      exitCode: number | null;
+      success: boolean;
+      stoppedByUser: boolean;
+    };
+
+export interface DevServerSnapshot {
+  status: DevServerStatus;
+  output: string;
+  /** Last output chunk included; later events with a higher seq follow on. */
+  seq: number;
 }
 
 export interface RepoSummary {
@@ -126,6 +159,9 @@ export interface RepoSummary {
   installCommand: string | null;
   /** https://github.com/<owner>/<repo> when origin is on GitHub. */
   githubUrl: string | null;
+  devServer: DevServerStatus;
+  /** Guessed from package.json; offered when nothing has been run yet. */
+  suggestedDevCommand: string | null;
 }
 
 export interface NotificationPrefs {

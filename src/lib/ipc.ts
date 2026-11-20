@@ -10,6 +10,8 @@ import type {
   CmdError,
   CommitSummary,
   DefaultPatterns,
+  DevServerSnapshot,
+  DevServerStatus,
   FlagKind,
   PullRequestSnapshot,
   RepoConfig,
@@ -67,6 +69,23 @@ export const ipc = {
   openOnGitHub: (repoId: string) => invoke<void>("open_on_github", { repoId }),
   /** Opens the open PR for a branch in the browser (URL is built in Rust). */
   openPullRequest: (repoId: string, branch: string) => invoke<void>("open_pull_request", { repoId, branch }),
+
+  /** Run `command` from the repo root in the user's shell. */
+  devServerStart: (repoId: string, command: string, cols: number, rows: number) =>
+    invoke<DevServerStatus>("dev_server_start", { repoId, command, cols, rows }),
+  devServerStop: (repoId: string) => invoke<DevServerStatus>("dev_server_stop", { repoId }),
+  devServerRestart: (repoId: string, cols: number, rows: number) =>
+    invoke<DevServerStatus>("dev_server_restart", { repoId, cols, rows }),
+  devServerWrite: (repoId: string, data: string) => invoke<void>("dev_server_write", { repoId, data }),
+  devServerResize: (repoId: string, cols: number, rows: number) =>
+    invoke<void>("dev_server_resize", { repoId, cols, rows }),
+  devServerSnapshot: (repoId: string) => invoke<DevServerSnapshot>("dev_server_snapshot", { repoId }),
+  /** Opens the local URL the dev server printed (taken from Rust, localhost only). */
+  openDevServerUrl: (repoId: string) => invoke<void>("open_dev_server_url", { repoId }),
+  pinDevCommand: (repoId: string, command: string, name: string) =>
+    invoke<RepoSummary>("pin_dev_command", { repoId, command, name }),
+  unpinDevCommand: (repoId: string, command: string) =>
+    invoke<RepoSummary>("unpin_dev_command", { repoId, command }),
 };
 
 export interface EventPayloads {
@@ -77,6 +96,8 @@ export interface EventPayloads {
   "flags-changed": { repoId: string; flags: ActiveFlag[] };
   "settings-changed": null;
   "pull-requests-updated": { repoId: string; prs: PullRequestSnapshot };
+  "dev-server-output": { repoId: string; seq: number; data: string };
+  "dev-server-changed": { repoId: string; status: DevServerStatus };
   /** Only sent after the user picks a branch in the tray menu that needs a decision. */
   "focus-repo": { repoId: string };
 }

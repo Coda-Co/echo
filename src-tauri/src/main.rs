@@ -47,6 +47,12 @@ impl EventSink for TauriSink {
             CoreEvent::PullRequestsUpdated { repo_id, prs } => {
                 app.emit("pull-requests-updated", serde_json::json!({ "repoId": repo_id, "prs": prs }))
             }
+            CoreEvent::DevServerOutput { repo_id, seq, data } => {
+                app.emit("dev-server-output", serde_json::json!({ "repoId": repo_id, "seq": seq, "data": data }))
+            }
+            CoreEvent::DevServerChanged { repo_id, status } => {
+                app.emit("dev-server-changed", serde_json::json!({ "repoId": repo_id, "status": status }))
+            }
             // Notifications are informational only: they never change the
             // selected repo or branch.
             CoreEvent::Notify { title, body, .. } => {
@@ -61,7 +67,11 @@ impl EventSink for TauriSink {
         }
         if !matches!(
             event,
-            CoreEvent::Notify { .. } | CoreEvent::FlagsChanged { .. } | CoreEvent::PullRequestsUpdated { .. }
+            CoreEvent::Notify { .. }
+                | CoreEvent::FlagsChanged { .. }
+                | CoreEvent::PullRequestsUpdated { .. }
+                | CoreEvent::DevServerOutput { .. }
+                | CoreEvent::DevServerChanged { .. }
         ) {
             self.tray.request();
         }
@@ -179,6 +189,15 @@ fn main() {
             commands::get_pull_requests,
             commands::open_on_github,
             commands::open_pull_request,
+            commands::dev_server_start,
+            commands::dev_server_stop,
+            commands::dev_server_restart,
+            commands::dev_server_write,
+            commands::dev_server_resize,
+            commands::dev_server_snapshot,
+            commands::open_dev_server_url,
+            commands::pin_dev_command,
+            commands::unpin_dev_command,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Echo");

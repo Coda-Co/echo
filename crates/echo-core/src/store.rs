@@ -153,8 +153,71 @@ pub struct RepoConfig {
     pub migrate_command: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flag_patterns: Option<FlagPatterns>,
+    /// Dev server commands: recently run and pinned.
+    #[serde(default, skip_serializing_if = "DevCommands::is_empty")]
+    pub dev_commands: DevCommands,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// How many recent dev server commands are kept per repo.
+pub const MAX_RECENT_DEV_COMMANDS: usize = 10;
+/// How many pinned dev server commands a repo can have.
+pub const MAX_PINNED_DEV_COMMANDS: usize = 20;
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DevCommands {
+    /// Newest first, no duplicates.
+    #[serde(default)]
+    pub recent: Vec<RecentDevCommand>,
+    #[serde(default)]
+    pub pinned: Vec<PinnedDevCommand>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentDevCommand {
+    pub command: String,
+    /// Unix millis when last started.
+    pub at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PinnedDevCommand {
+    pub name: String,
+    pub command: String,
+}
+
+impl DevCommands {
+    pub fn is_empty(&self) -> bool {
+        self.recent.is_empty() && self.pinned.is_empty()
+    }
+
+    /// Move `command` to the front of the recent list.
+    pub fn record(&mut self, command: &str, at: i64) {
+        self.recent.retain(|r| r.command != command);
+        self.recent.insert(0, RecentDevCommand { command: command.to_string(), at });
+        self.recent.truncate(MAX_RECENT_DEV_COMMANDS);
+    }
+
+    /// Pin `command` under `name`, or rename it if it is already pinned.
+    pub fn pin(&mut self, command: &str, name: &str) -> bool {
+        if let Some(p) = self.pinned.iter_mut().find(|p| p.command == command) {
+            p.name = name.to_string();
+            return true;
+        }
+        if self.pinned.len() >= MAX_PINNED_DEV_COMMANDS {
+            return false;
+        }
+        self.pinned.push(PinnedDevCommand { name: name.to_string(), command: command.to_string() });
+        true
+    }
+
+    pub fn unpin(&mut self, command: &str) {
+        self.pinned.retain(|p| p.command != command);
+    }
 }
 
 impl RepoConfig {
@@ -171,6 +234,7 @@ impl RepoConfig {
             install_command: None,
             migrate_command: None,
             flag_patterns: None,
+            dev_commands: DevCommands::default(),
             extra: Map::new(),
         }
     }
@@ -326,6 +390,38 @@ pub fn now_ms() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dev_commands_recent_and_pinned() {
+        let mut d = DevCommands::default();
+        assert!(d.is_empty());
+        d.record("pnpm dev", 1);
+        d.record("pnpm dev --agents=a", 2);
+        d.record("pnpm dev", 3);
+        let cmds: Vec<_> = d.recent.iter().map(|r| r.command.as_str()).collect();
+        assert_eq!(cmds, ["pnpm dev", "pnpm dev --agents=a"]);
+        assert_eq!(d.recent[0].at, 3);
+        for i in 0..20 {
+            d.record(&format!("cmd {i}"), 10 + i);
+        }
+        assert_eq!(d.recent.len(), MAX_RECENT_DEV_COMMANDS);
+        assert_eq!(d.recent[0].command, "cmd 19");
+
+        assert!(d.pin("pnpm dev --agents=a", "agent a"));
+        assert!(d.pin("pnpm dev --agents=a", "renamed"));
+        assert_eq!(d.pinned.len(), 1);
+        assert_eq!(d.pinned[0].name, "renamed");
+        d.unpin("pnpm dev --agents=a");
+        assert!(d.pinned.is_empty());
+
+        // Round-trips, and an empty set is left out of config.json.
+        let rc = RepoConfig::new("id".into(), "/p".into(), "p".into());
+        assert!(!serde_json::to_string(&rc).unwrap().contains("devCommands"));
+        let mut rc2 = rc.clone();
+        rc2.dev_commands = d;
+        let back: RepoConfig = serde_json::from_str(&serde_json::to_string(&rc2).unwrap()).unwrap();
+        assert_eq!(back, rc2);
+    }
 
     #[test]
     fn defaults_and_unknown_fields_roundtrip() {

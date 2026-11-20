@@ -1,6 +1,7 @@
 //! Thin `#[tauri::command]` wrappers over [`echo_core::Core`].
 
 use crate::AppState;
+use echo_core::devserver::{is_local_url, DevServerSnapshot, DevServerStatus};
 use echo_core::flags::{default_patterns, FlagKind};
 use echo_core::github::PullRequestSnapshot;
 use echo_core::store::{ActiveFlag, Config};
@@ -177,4 +178,71 @@ pub fn open_on_github(state: State<'_, AppState>, repo_id: String) -> R<()> {
 #[tauri::command]
 pub fn open_pull_request(state: State<'_, AppState>, repo_id: String, branch: String) -> R<()> {
     open_github(&state.core.pull_request_url(&repo_id, &branch)?)
+}
+
+// ---- Dev server ----
+// The webview sends the command text; Echo runs it from the repo root in the
+// user's shell. That is the feature, and the same thing the user could type
+// in their own terminal.
+
+#[tauri::command]
+pub async fn dev_server_start(
+    state: State<'_, AppState>,
+    repo_id: String,
+    command: String,
+    cols: u16,
+    rows: u16,
+) -> R<DevServerStatus> {
+    state.core.dev_server_start(&repo_id, &command, cols, rows).await
+}
+
+#[tauri::command]
+pub fn dev_server_stop(state: State<'_, AppState>, repo_id: String) -> R<DevServerStatus> {
+    state.core.dev_server_stop(&repo_id)
+}
+
+#[tauri::command]
+pub async fn dev_server_restart(
+    state: State<'_, AppState>,
+    repo_id: String,
+    cols: u16,
+    rows: u16,
+) -> R<DevServerStatus> {
+    state.core.dev_server_restart(&repo_id, cols, rows).await
+}
+
+#[tauri::command]
+pub fn dev_server_write(state: State<'_, AppState>, repo_id: String, data: String) -> R<()> {
+    state.core.dev_server_write(&repo_id, &data)
+}
+
+#[tauri::command]
+pub fn dev_server_resize(state: State<'_, AppState>, repo_id: String, cols: u16, rows: u16) -> R<()> {
+    state.core.dev_server_resize(&repo_id, cols, rows)
+}
+
+#[tauri::command]
+pub fn dev_server_snapshot(state: State<'_, AppState>, repo_id: String) -> DevServerSnapshot {
+    state.core.dev_server_snapshot(&repo_id)
+}
+
+/// Opens the local URL the dev server printed. The URL comes from Rust and
+/// is checked to be http(s) on localhost.
+#[tauri::command]
+pub fn open_dev_server_url(state: State<'_, AppState>, repo_id: String) -> R<()> {
+    let url = state.core.dev_server_url(&repo_id)?;
+    if !is_local_url(&url) {
+        return Err(invalid("not a local URL"));
+    }
+    crate::platform::open_url(&url).map_err(|e| invalid(e.to_string()))
+}
+
+#[tauri::command]
+pub fn pin_dev_command(state: State<'_, AppState>, repo_id: String, command: String, name: String) -> R<RepoSummary> {
+    state.core.pin_dev_command(&repo_id, &command, &name)
+}
+
+#[tauri::command]
+pub fn unpin_dev_command(state: State<'_, AppState>, repo_id: String, command: String) -> R<RepoSummary> {
+    state.core.unpin_dev_command(&repo_id, &command)
 }

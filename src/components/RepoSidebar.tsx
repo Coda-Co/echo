@@ -4,7 +4,7 @@ import { ipc } from "../lib/ipc";
 import { copyText, fileManagerName, stateTone } from "../lib/format";
 import { useEcho } from "../lib/store";
 import type { RepoSummary } from "../lib/types";
-import { Button, Dot, PauseIcon, SyncIcon } from "./ui";
+import { Button, Dot, PauseIcon, SyncIcon, TerminalIcon } from "./ui";
 
 async function pickFolder(title: string): Promise<string | null> {
   const picked = await open({ directory: true, multiple: false, title });
@@ -66,6 +66,7 @@ export function RepoSidebar() {
                 </span>
                 <span className="min-w-0 flex-1 truncate">{r.config.displayName}</span>
                 {!r.available && <span className="text-[10px] uppercase">missing</span>}
+                {r.available && <RepoDevIcon repo={r} selected={r.id === selectedId} />}
                 {r.available && r.sync.branch && r.sync.state.kind !== "off" && (
                   <RepoSyncIcon repo={r} selected={r.id === selectedId} />
                 )}
@@ -115,6 +116,22 @@ export function RepoSidebar() {
       )}
     </nav>
   );
+}
+
+/** Shown while a repo's dev server runs (green) or after it crashed (red). */
+function RepoDevIcon({ repo, selected }: { repo: RepoSummary; selected: boolean }) {
+  const s = repo.devServer;
+  if (s.kind === "running" || s.kind === "stopping") {
+    return <TerminalIcon title="Dev server running" className={selected ? "text-white" : "text-green-600"} />;
+  }
+  if (s.kind === "exited" && !s.success && !s.stoppedByUser) {
+    return (
+      <span className={`flex rounded-sm ${selected ? "bg-white p-px" : ""}`}>
+        <TerminalIcon title="Dev server exited with an error" className="text-red-600" />
+      </span>
+    );
+  }
+  return null;
 }
 
 function RepoSyncIcon({ repo, selected }: { repo: RepoSummary; selected: boolean }) {
