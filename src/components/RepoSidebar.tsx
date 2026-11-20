@@ -4,7 +4,7 @@ import { ipc } from "../lib/ipc";
 import { copyText, fileManagerName, stateTone } from "../lib/format";
 import { useEcho } from "../lib/store";
 import type { RepoSummary } from "../lib/types";
-import { Button, Dot } from "./ui";
+import { Button, Dot, SyncIcon } from "./ui";
 
 async function pickFolder(title: string): Promise<string | null> {
   const picked = await open({ directory: true, multiple: false, title });
@@ -67,7 +67,7 @@ export function RepoSidebar() {
                 <span className="min-w-0 flex-1 truncate">{r.config.displayName}</span>
                 {!r.available && <span className="text-[10px] uppercase">missing</span>}
                 {r.available && r.sync.branch && r.sync.state.kind !== "off" && (
-                  <SyncIcon repo={r} selected={r.id === selectedId} />
+                  <RepoSyncIcon repo={r} selected={r.id === selectedId} />
                 )}
               </button>
             )}
@@ -117,7 +117,7 @@ export function RepoSidebar() {
   );
 }
 
-function SyncIcon({ repo, selected }: { repo: RepoSummary; selected: boolean }) {
+function RepoSyncIcon({ repo, selected }: { repo: RepoSummary; selected: boolean }) {
   const tone = stateTone(repo.sync.state);
   const color = selected
     ? "text-white"
@@ -128,11 +128,7 @@ function SyncIcon({ repo, selected }: { repo: RepoSummary; selected: boolean }) 
         : tone === "muted"
           ? "text-zinc-400"
           : "text-green-600";
-  return (
-    <span title={`Syncing ${repo.sync.branch}`} className={`text-xs ${color}`}>
-      ↻
-    </span>
-  );
+  return <SyncIcon title={`Syncing ${repo.sync.branch}`} className={color} />;
 }
 
 function RenameInput({ initial, onDone }: { initial: string; onDone: (name: string | null) => void }) {

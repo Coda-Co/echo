@@ -1,6 +1,6 @@
 import { branchBadge, relativeTime } from "../lib/format";
 import type { BranchInfo } from "../lib/types";
-import { Badge, Button, Dot } from "./ui";
+import { Badge, Button, Dot, SyncIcon } from "./ui";
 
 interface Props {
   branch: BranchInfo;
@@ -30,7 +30,7 @@ export function BranchRow({ branch: b, selected, now, onSwitch, onPreview }: Pro
     >
       <div className="flex w-3 justify-center self-start pt-1.5">
         {dot && <Dot tone="accent" title="Unseen activity" />}
-        {!dot && b.isSynced && <span title="Synced" className="text-[11px] leading-none text-green-600">↻</span>}
+        {!dot && b.isSynced && <SyncIcon title="Synced" className="text-green-600" />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">

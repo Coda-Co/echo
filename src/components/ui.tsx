@@ -104,3 +104,26 @@ export function FileList({ files, max = 12 }: { files: string[]; max?: number })
     </ul>
   );
 }
+
+/** Two-way arrow marking the branch Echo keeps in sync with origin. */
+export function SyncIcon({ title, className = "" }: { title?: string; className?: string }) {
+  return (
+    <svg
+      role={title ? "img" : undefined}
+      aria-label={title}
+      aria-hidden={title ? undefined : true}
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`shrink-0 ${className}`}
+    >
+      {title && <title>{title}</title>}
+      <path d="M1.5 6h9M4 3.5 1.5 6 4 8.5M8 3.5 10.5 6 8 8.5" />
+    </svg>
+  );
+}
