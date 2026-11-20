@@ -39,7 +39,6 @@ describe("BranchRow", () => {
 
   it.each([
     [{ status: { kind: "unseen", count: 3 } }, "3 new", true],
-    [{ status: { kind: "new" } }, "new", true],
     [{ status: { kind: "rewritten" } }, "rewritten", true],
     [{ isCurrent: true }, "current", false],
     [{ deleted: true, status: { kind: "new" } }, "deleted", false],
@@ -77,10 +76,36 @@ describe("BranchRow", () => {
     expect(onSwitch).not.toHaveBeenCalled();
   });
 
+  it("a new branch gets the dot but no pill", () => {
+    renderRow({ status: { kind: "new" } });
+    expect(screen.getByLabelText("Unseen activity")).toBeInTheDocument();
+    expect(screen.queryByTestId("badge")).toBeNull();
+  });
+
   it("the synced branch has no badge, just the sync icon", () => {
     renderRow({ isSynced: true, isCurrent: true });
     expect(screen.queryByTestId("badge")).toBeNull();
     expect(screen.getByRole("img", { name: "Synced" })).toBeInTheDocument();
+  });
+
+  it("clicking the blue dot marks the branch seen without switching", async () => {
+    const onMarkSeen = vi.fn();
+    const onSwitch = vi.fn();
+    render(
+      <ul>
+        <BranchRow
+          branch={{ ...base, status: { kind: "unseen", count: 2 } }}
+          selected={false}
+          now={now}
+          onMarkSeen={onMarkSeen}
+          onSwitch={onSwitch}
+          onPreview={vi.fn()}
+        />
+      </ul>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Mark claude/add-filters as seen" }));
+    expect(onMarkSeen).toHaveBeenCalledOnce();
+    expect(onSwitch).not.toHaveBeenCalled();
   });
 
   it("clicking the row switches to it", async () => {

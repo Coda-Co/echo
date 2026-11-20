@@ -95,6 +95,7 @@ export function BranchList({ repo }: { repo: RepoSummary }) {
               syncPaused={repo.sync.state.kind === "paused"}
               pr={prs?.[b.name]}
               onOpenPr={() => run(() => ipc.openPullRequest(repo.id, b.name))}
+              onMarkSeen={() => run(() => ipc.markSeen(repo.id, b.name))}
               onSwitch={() => startSync(repo.id, b.name)}
               onPreview={() => onPreview(b.name, b.status.kind !== "seen")}
             />

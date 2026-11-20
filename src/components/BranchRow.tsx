@@ -12,13 +12,15 @@ interface Props {
   /** Open pull request with this branch as its head. */
   pr?: PullRequest;
   onOpenPr?: () => void;
+  /** Blue dot click: mark this branch's activity as seen. */
+  onMarkSeen?: () => void;
   /** Row click: check out this branch and keep it synced. */
   onSwitch: () => void;
   /** History button: toggle the history panel for this branch. */
   onPreview: () => void;
 }
 
-export function BranchRow({ branch: b, selected, now, syncPaused = false, pr, onOpenPr, onSwitch, onPreview }: Props) {
+export function BranchRow({ branch: b, selected, now, syncPaused = false, pr, onOpenPr, onMarkSeen, onSwitch, onPreview }: Props) {
   const badge = branchBadge(b);
   const dot = !b.deleted && b.status.kind !== "seen";
   const canSwitch = !b.deleted && !b.isSynced;
@@ -34,7 +36,20 @@ export function BranchRow({ branch: b, selected, now, syncPaused = false, pr, on
       } ${b.deleted ? "opacity-50" : ""}`}
     >
       <div className="flex w-3 justify-center self-start pt-1.5">
-        {dot && <Dot tone="accent" title="Unseen activity" />}
+        {dot && (
+          <button
+            type="button"
+            aria-label={`Mark ${b.name} as seen`}
+            title="Mark as seen"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMarkSeen?.();
+            }}
+            className="-m-1.5 rounded-full p-1.5 hover:bg-blue-500/15 focus-visible:outline focus-visible:outline-1 focus-visible:outline-blue-500"
+          >
+            <Dot tone="accent" title="Unseen activity" className="block" />
+          </button>
+        )}
         {!dot &&
           b.isSynced &&
           (syncPaused ? (

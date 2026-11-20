@@ -37,8 +37,6 @@ export function branchBadge(b: BranchInfo): Badge | null {
 
 export function statusBadge(s: BranchStatus): Badge | null {
   switch (s.kind) {
-    case "new":
-      return { label: "new", tone: "accent" };
     case "unseen":
       return { label: `${s.count} new`, tone: "info" };
     case "rewritten":
