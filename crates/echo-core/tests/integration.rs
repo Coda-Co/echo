@@ -32,19 +32,29 @@ fn sh(dir: &Path, args: &[&str]) -> String {
         .env("HOME", dir)
         .output()
         .expect("git runs");
-    assert!(
-        out.status.success(),
-        "git {args:?} failed in {}: {}",
-        dir.display(),
-        String::from_utf8_lossy(&out.stderr)
-    );
+    assert!(out.status.success(), "git {args:?} failed in {}: {}", dir.display(), String::from_utf8_lossy(&out.stderr));
     String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+static INIT: std::sync::Once = std::sync::Once::new();
+
+/// Canonicalise without the Windows `\\?\` prefix, which git doesn't accept.
+fn canonical(p: &Path) -> PathBuf {
+    let c = p.canonicalize().unwrap();
+    let s = c.to_string_lossy();
+    match s.strip_prefix(r"\\?\") {
+        Some(rest) => PathBuf::from(rest),
+        None => c,
+    }
 }
 
 impl Fx {
     async fn new() -> Fx {
+        // Ignore the machine's system git config (e.g. core.autocrlf=true on
+        // Windows runners) for both the fixtures and Echo's own git calls.
+        INIT.call_once(|| std::env::set_var("GIT_CONFIG_NOSYSTEM", "1"));
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().canonicalize().unwrap();
+        let root = canonical(dir.path());
         let origin = root.join("origin.git");
         let agent = root.join("agent");
         let local = root.join("local");
@@ -60,7 +70,7 @@ impl Fx {
             sh(d, &["config", "user.name", "Test"]);
             sh(d, &["config", "user.email", "t@example.com"]);
         }
-        let git = Git::discover(Some(Path::new(&which_git()))).await.unwrap();
+        let git = Git::discover(None).await.expect("git on PATH");
         Fx { _dir: dir, root, origin, agent, local, git }
     }
 
@@ -109,16 +119,6 @@ impl Fx {
     async fn switch(&self, branch: &str) -> sync::SwitchResult {
         sync::switch(self.ctx(branch, None), false).await.expect("switch")
     }
-}
-
-fn which_git() -> String {
-    let out = Command::new("git").args(["--exec-path"]).output().unwrap();
-    let exec = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    let candidate = Path::new(&exec).join("git");
-    if candidate.exists() {
-        return candidate.display().to_string();
-    }
-    "git".into()
 }
 
 // ---------------------------------------------------------------------------
@@ -254,10 +254,7 @@ async fn dirty_tracked_file_blocks_and_discard_recovers() {
     std::fs::write(fx.local.join("untracked.env"), "keep me").unwrap();
     let sha2 = fx.agent_commit("claude/a", "a.txt", "2", "Second");
     let t = sync::tick(fx.ctx("claude/a", Some(&sha1))).await;
-    assert_eq!(
-        t.state,
-        SyncState::BlockedDirty { files: vec!["a.txt".into()], untracked: vec![], crlf_hint: false }
-    );
+    assert_eq!(t.state, SyncState::BlockedDirty { files: vec!["a.txt".into()], untracked: vec![], crlf_hint: false });
     sync::discard_changes(&fx.git, &fx.local).await.unwrap();
     let t = sync::tick(fx.ctx("claude/a", Some(&sha1))).await;
     assert_eq!(t.state, SyncState::Idle);
@@ -297,7 +294,9 @@ async fn force_push_reset_never_deletes_untracked_files() {
     std::fs::write(fx.local.join("rewritten.txt"), "precious").unwrap();
     fx.agent_force_push("claude/a"); // adds rewritten.txt
     let t = sync::tick(fx.ctx("claude/a", Some(&sha1))).await;
-    assert!(matches!(&t.state, SyncState::BlockedDirty { untracked, .. } if untracked == &vec!["rewritten.txt".to_string()]));
+    assert!(
+        matches!(&t.state, SyncState::BlockedDirty { untracked, .. } if untracked == &vec!["rewritten.txt".to_string()])
+    );
     assert_eq!(std::fs::read_to_string(fx.local.join("rewritten.txt")).unwrap(), "precious");
 }
 
@@ -361,10 +360,7 @@ async fn checkout_changed_outside_app_pauses_and_recovers() {
     fx.switch("claude/a").await;
     sh(&fx.local, &["switch", "-q", "main"]);
     let t = sync::tick(fx.ctx("claude/a", Some(&sha1))).await;
-    assert_eq!(
-        t.state,
-        SyncState::Paused { reason: PauseReason::CheckoutChanged { current: Some("main".into()) } }
-    );
+    assert_eq!(t.state, SyncState::Paused { reason: PauseReason::CheckoutChanged { current: Some("main".into()) } });
     sh(&fx.local, &["switch", "-q", "claude/a"]);
     let t = sync::tick(fx.ctx("claude/a", Some(&sha1))).await;
     assert_eq!(t.state, SyncState::Idle);
@@ -435,7 +431,8 @@ async fn poll_reports_new_unseen_rewritten_and_deleted() {
 
     let out = branches::poll(&fx.git, &fx.local, &mut cache, &seen, None).await.unwrap();
     assert!(out.changed);
-    let status = |out: &branches::PollOutcome, n: &str| out.branches.iter().find(|b| b.name == n).unwrap().status.clone();
+    let status =
+        |out: &branches::PollOutcome, n: &str| out.branches.iter().find(|b| b.name == n).unwrap().status.clone();
     assert_eq!(status(&out, "main"), BranchStatus::Seen);
     assert_eq!(status(&out, "claude/a"), BranchStatus::Seen);
     assert_eq!(status(&out, "claude/b"), BranchStatus::New);
@@ -523,11 +520,7 @@ async fn core_end_to_end() {
     fx.agent_commit("claude/old", "o.txt", "1", "Old work");
     let data = fx.root.join("appdata");
     std::fs::create_dir_all(&data).unwrap();
-    std::fs::write(
-        data.join("config.json"),
-        format!(r#"{{"gitPath": {:?}, "syncBaseSeconds": 1}}"#, which_git()),
-    )
-    .unwrap();
+    std::fs::write(data.join("config.json"), r#"{"syncBaseSeconds": 1}"#).unwrap();
     let rec = Arc::new(Recorder::default());
     let core = Core::start(&data, rec.clone(), "test").await;
     assert!(core.app_info().git_error.is_none());
@@ -546,7 +539,11 @@ async fn core_end_to_end() {
     fx.agent_commit("claude/feat", "f.txt", "1", "Feature");
     core.sync_now(&id).await.unwrap();
     wait_for("w1", || {
-        core.get_branches(&id).unwrap().branches.iter().any(|b| b.name == "claude/feat" && b.status == BranchStatus::New)
+        core.get_branches(&id)
+            .unwrap()
+            .branches
+            .iter()
+            .any(|b| b.name == "claude/feat" && b.status == BranchStatus::New)
     })
     .await;
     assert!(core.list_repos()[0].has_unseen);
@@ -559,11 +556,19 @@ async fn core_end_to_end() {
     let sha = fx.agent_commit("claude/feat", "package.json", "{\"x\":1}", "Bump deps");
     wait_for("w2", || fx.local_head() == sha).await;
     wait_for("w3", || core.list_repos()[0].flags.iter().any(|f| f.kind == echo_core::flags::FlagKind::Deps)).await;
-    wait_for("w4", || rec.notes().iter().any(|n| n.contains("claude/feat → 1 commit: Bump deps") && n.contains("Dependencies changed")))
-        .await;
+    wait_for("w4", || {
+        rec.notes()
+            .iter()
+            .any(|n| n.contains("claude/feat → 1 commit: Bump deps") && n.contains("Dependencies changed"))
+    })
+    .await;
     // Synced branch is marked seen when pulled.
     wait_for("w5", || {
-        core.get_branches(&id).unwrap().branches.iter().any(|b| b.name == "claude/feat" && b.status == BranchStatus::Seen && b.sha == sha)
+        core.get_branches(&id)
+            .unwrap()
+            .branches
+            .iter()
+            .any(|b| b.name == "claude/feat" && b.status == BranchStatus::Seen && b.sha == sha)
     })
     .await;
 
@@ -592,9 +597,11 @@ async fn core_end_to_end() {
     core.shutdown();
 
     // Everything persisted.
-    let config: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(data.join("config.json")).unwrap()).unwrap();
+    let config: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(data.join("config.json")).unwrap()).unwrap();
     assert_eq!(config["repos"][0]["displayName"], "renamed");
-    let state: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(data.join("state.json")).unwrap()).unwrap();
+    let state: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(data.join("state.json")).unwrap()).unwrap();
     assert_eq!(state["repos"][&id]["lastSeen"]["claude/feat"], sha2);
     assert_eq!(state["repos"][&id]["lastSynced"]["claude/feat"], sha2);
 

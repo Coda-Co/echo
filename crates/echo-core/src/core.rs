@@ -25,15 +25,31 @@ use tokio::sync::{watch, Notify};
 pub enum CoreEvent {
     ReposChanged,
     #[serde(rename_all = "camelCase")]
-    BranchesUpdated { repo_id: String, snapshot: BranchSnapshot },
+    BranchesUpdated {
+        repo_id: String,
+        snapshot: BranchSnapshot,
+    },
     #[serde(rename_all = "camelCase")]
-    SyncStatusChanged { repo_id: String, status: SyncStatus },
+    SyncStatusChanged {
+        repo_id: String,
+        status: SyncStatus,
+    },
     #[serde(rename_all = "camelCase")]
-    SyncEvent { repo_id: String, event: SyncEvent },
+    SyncEvent {
+        repo_id: String,
+        event: SyncEvent,
+    },
     #[serde(rename_all = "camelCase")]
-    FlagsChanged { repo_id: String, flags: Vec<ActiveFlag> },
+    FlagsChanged {
+        repo_id: String,
+        flags: Vec<ActiveFlag>,
+    },
     #[serde(rename_all = "camelCase")]
-    Notify { repo_id: String, title: String, body: String },
+    Notify {
+        repo_id: String,
+        title: String,
+        body: String,
+    },
     SettingsChanged,
 }
 
@@ -338,7 +354,11 @@ impl Core {
                 core.poll_once(&h2, false).await;
                 let secs = {
                     let backoff = h2.rt().poll_network_backoff;
-                    if backoff { 60 } else { lock(&core.0.config).branch_poll_seconds.max(5) }
+                    if backoff {
+                        60
+                    } else {
+                        lock(&core.0.config).branch_poll_seconds.max(5)
+                    }
                 };
                 tokio::select! {
                     _ = tokio::time::sleep(Duration::from_secs(secs)) => {}
@@ -466,11 +486,7 @@ impl Core {
     }
 
     fn has_unseen(&self, h: &RepoHandle, filter: &BranchFilter) -> bool {
-        h.rt()
-            .snapshot
-            .branches
-            .iter()
-            .any(|b| !b.deleted && b.status.has_dot() && filter_matches(filter, &b.name))
+        h.rt().snapshot.branches.iter().any(|b| !b.deleted && b.status.has_dot() && filter_matches(filter, &b.name))
     }
 
     fn should_tick(state: &SyncState) -> bool {
@@ -514,9 +530,7 @@ impl Core {
             let (core, h, b) = (self.clone(), h.clone(), branch.clone());
             move || core.set_sync_state(&h, Some(b.clone()), SyncState::Pulling, None)
         };
-        let ctx = SyncCtx::new(&git, &h.path, &branch)
-            .last_synced(last_synced.as_deref())
-            .policy(rc.force_push_policy);
+        let ctx = SyncCtx::new(&git, &h.path, &branch).last_synced(last_synced.as_deref()).policy(rc.force_push_policy);
         let ctx = SyncCtx { on_pull: Some(&on_pull), ..ctx };
         let res = sync::tick(ctx).await;
         self.apply_tick(h, &rc, &branch, res, false).await;
@@ -571,7 +585,9 @@ impl Core {
         let block_key = match &res.state {
             s if s.is_blocked() => Some(s.kind_name().to_string()),
             SyncState::RemoteBranchDeleted => Some("remoteBranchDeleted".into()),
-            SyncState::Error { error } if error.kind != GitErrorKind::Network => Some(format!("error:{:?}", error.kind)),
+            SyncState::Error { error } if error.kind != GitErrorKind::Network => {
+                Some(format!("error:{:?}", error.kind))
+            }
             _ => None,
         };
         let newly_blocked = {
@@ -862,9 +878,7 @@ impl Core {
 
         let _g = h.lock.lock().await;
         let last_synced = self.read_state(id, |s| s.last_synced.get(branch).cloned());
-        let ctx = SyncCtx::new(&git, &h.path, branch)
-            .last_synced(last_synced.as_deref())
-            .policy(rc.force_push_policy);
+        let ctx = SyncCtx::new(&git, &h.path, branch).last_synced(last_synced.as_deref()).policy(rc.force_push_policy);
         let res = sync::switch(ctx, discard).await;
         let r = match res {
             Ok(r) => r,
@@ -1000,10 +1014,8 @@ impl Core {
     pub async fn reset_to_remote(&self, id: &str) -> CmdResult<SyncStatus> {
         let h = self.handle(id)?;
         let rc = self.repo_config(id).ok_or_else(|| CmdError::not_found("repo"))?;
-        let branch = rc
-            .synced_branch
-            .clone()
-            .ok_or_else(|| CmdError::new(CmdErrorKind::Invalid, "No synced branch"))?;
+        let branch =
+            rc.synced_branch.clone().ok_or_else(|| CmdError::new(CmdErrorKind::Invalid, "No synced branch"))?;
         let git = self.git()?;
         let _g = h.lock.lock().await;
         let ctx = SyncCtx::new(&git, &h.path, &branch).policy(rc.force_push_policy);
@@ -1031,14 +1043,8 @@ impl Core {
 
     /// Patch global settings. Returns the new settings.
     pub async fn update_settings(&self, patch: Value) -> CmdResult<Config> {
-        const EDITABLE: &[&str] = &[
-            "gitPath",
-            "launchAtLogin",
-            "startHidden",
-            "branchPollSeconds",
-            "syncBaseSeconds",
-            "notifications",
-        ];
+        const EDITABLE: &[&str] =
+            &["gitPath", "launchAtLogin", "startHidden", "branchPollSeconds", "syncBaseSeconds", "notifications"];
         let current = lock(&self.0.config).clone();
         let mut merged: Config = merge_patch(&current, &patch, EDITABLE)?;
         merged.branch_poll_seconds = merged.branch_poll_seconds.clamp(5, 3600);
@@ -1143,7 +1149,12 @@ impl Core {
                 };
                 unseen.push((
                     br.committed_at,
-                    TrayUnseen { repo_id: rc.id.clone(), repo_name: rc.display_name.clone(), branch: br.name.clone(), label },
+                    TrayUnseen {
+                        repo_id: rc.id.clone(),
+                        repo_name: rc.display_name.clone(),
+                        branch: br.name.clone(),
+                        label,
+                    },
                 ));
             }
         }
@@ -1180,7 +1191,11 @@ fn with_flag_text(mut body: String, flags: &[FlagKind], rc: &RepoConfig, path: &
 }
 
 /// Apply a JSON merge patch restricted to `editable` top-level keys.
-fn merge_patch<T: Serialize + for<'de> serde::Deserialize<'de>>(current: &T, patch: &Value, editable: &[&str]) -> CmdResult<T> {
+fn merge_patch<T: Serialize + for<'de> serde::Deserialize<'de>>(
+    current: &T,
+    patch: &Value,
+    editable: &[&str],
+) -> CmdResult<T> {
     let Value::Object(patch) = patch else {
         return Err(CmdError::new(CmdErrorKind::Invalid, "patch must be an object"));
     };
@@ -1206,13 +1221,21 @@ mod tests {
     #[test]
     fn merge_patch_rules() {
         let rc = RepoConfig::new("id".into(), "/p".into(), "p".into());
-        let out: RepoConfig = merge_patch(&rc, &serde_json::json!({"displayName": "x", "installCommand": "pnpm i"}), &["displayName", "installCommand"]).unwrap();
+        let out: RepoConfig = merge_patch(
+            &rc,
+            &serde_json::json!({"displayName": "x", "installCommand": "pnpm i"}),
+            &["displayName", "installCommand"],
+        )
+        .unwrap();
         assert_eq!(out.display_name, "x");
         assert_eq!(out.install_command.as_deref(), Some("pnpm i"));
-        let out: RepoConfig = merge_patch(&out, &serde_json::json!({"installCommand": null}), &["installCommand"]).unwrap();
+        let out: RepoConfig =
+            merge_patch(&out, &serde_json::json!({"installCommand": null}), &["installCommand"]).unwrap();
         assert_eq!(out.install_command, None);
         assert!(merge_patch::<RepoConfig>(&rc, &serde_json::json!({"path": "/etc"}), &["displayName"]).is_err());
-        assert!(merge_patch::<RepoConfig>(&rc, &serde_json::json!({"pollingEnabled": "yes"}), &["pollingEnabled"]).is_err());
+        assert!(
+            merge_patch::<RepoConfig>(&rc, &serde_json::json!({"pollingEnabled": "yes"}), &["pollingEnabled"]).is_err()
+        );
     }
 
     #[test]

@@ -88,7 +88,8 @@ fn merge(mut notes: Vec<Note>) -> Note {
     }
     let title = notes.last().map(|n| n.title.clone()).unwrap_or_default();
     let n = notes.len();
-    let mut lines: Vec<String> = notes.iter().rev().take(3).map(|n| n.body.lines().next().unwrap_or("").to_string()).collect();
+    let mut lines: Vec<String> =
+        notes.iter().rev().take(3).map(|n| n.body.lines().next().unwrap_or("").to_string()).collect();
     lines.reverse();
     if n > 3 {
         lines.insert(0, format!("{} more updates…", n - 3));

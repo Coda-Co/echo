@@ -65,7 +65,14 @@ impl PollCache {
         out
     }
 
-    async fn status_for(&mut self, git: &Git, repo: &Path, name: &str, tip: &str, seen: Option<&String>) -> BranchStatus {
+    async fn status_for(
+        &mut self,
+        git: &Git,
+        repo: &Path,
+        name: &str,
+        tip: &str,
+        seen: Option<&String>,
+    ) -> BranchStatus {
         if let Some((t, s, st)) = self.statuses.get(name) {
             if t == tip && s.as_ref() == seen {
                 return st.clone();
@@ -139,15 +146,9 @@ pub async fn poll(
     };
 
     if changed {
-        git.run(repo, &["fetch", "--prune", "--no-tags", "origin", FETCH_ALL_REFSPEC], Mode::Network)
-            .await?;
-        let refs_out = git
-            .run(repo, &["for-each-ref", "refs/remotes/origin", FOR_EACH_REF_FORMAT], Mode::Read)
-            .await?;
-        cache.refs = parse_for_each_ref(&refs_out)
-            .into_iter()
-            .filter(|r| remote.contains_key(&r.name))
-            .collect();
+        git.run(repo, &["fetch", "--prune", "--no-tags", "origin", FETCH_ALL_REFSPEC], Mode::Network).await?;
+        let refs_out = git.run(repo, &["for-each-ref", "refs/remotes/origin", FOR_EACH_REF_FORMAT], Mode::Read).await?;
+        cache.refs = parse_for_each_ref(&refs_out).into_iter().filter(|r| remote.contains_key(&r.name)).collect();
         cache.statuses.retain(|k, _| remote.contains_key(k));
         cache.remote = Some(remote);
     }

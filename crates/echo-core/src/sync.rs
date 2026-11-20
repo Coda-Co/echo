@@ -112,10 +112,7 @@ async fn tick_inner(ctx: SyncCtx<'_>) -> Result<TickResult, GitError> {
 
     let refname = format!("refs/heads/{branch}");
     let out = git.run(repo, &["ls-remote", "origin", &refname], Mode::Network).await?;
-    let remote_sha = crate::git::parse_ls_remote(&out)
-        .into_iter()
-        .find(|(n, _)| n == branch)
-        .map(|(_, s)| s);
+    let remote_sha = crate::git::parse_ls_remote(&out).into_iter().find(|(n, _)| n == branch).map(|(_, s)| s);
     let Some(remote_sha) = remote_sha else {
         return Ok(TickResult::state(SyncState::RemoteBranchDeleted, head));
     };
@@ -128,8 +125,7 @@ async fn tick_inner(ctx: SyncCtx<'_>) -> Result<TickResult, GitError> {
     if let Some(f) = ctx.on_pull {
         f();
     }
-    git.run(repo, &["fetch", "--no-tags", "origin", &branch_refspec(branch)], Mode::Network)
-        .await?;
+    git.run(repo, &["fetch", "--no-tags", "origin", &branch_refspec(branch)], Mode::Network).await?;
     decide(ctx, false).await
 }
 
@@ -143,10 +139,7 @@ pub async fn decide(ctx: SyncCtx<'_>, force_reset: bool) -> Result<TickResult, G
         let dirty = repo::dirty_files(git, repo).await?;
         if !dirty.is_empty() {
             let crlf_hint = repo::dirty_only_line_endings(git, repo, &dirty).await;
-            return Ok(TickResult::state(
-                SyncState::BlockedDirty { files: dirty, untracked: vec![], crlf_hint },
-                None,
-            ));
+            return Ok(TickResult::state(SyncState::BlockedDirty { files: dirty, untracked: vec![], crlf_hint }, None));
         }
         let Some(target) = repo::rev_parse(git, repo, &target_ref).await? else {
             return Ok(TickResult::state(SyncState::RemoteBranchDeleted, None));
@@ -155,7 +148,12 @@ pub async fn decide(ctx: SyncCtx<'_>, force_reset: bool) -> Result<TickResult, G
             return Err(GitError::other("HEAD has no commits"));
         };
         if head == target {
-            return Ok(TickResult { state: SyncState::Idle, head: Some(head.clone()), moved: None, synced_sha: Some(head) });
+            return Ok(TickResult {
+                state: SyncState::Idle,
+                head: Some(head.clone()),
+                moved: None,
+                synced_sha: Some(head),
+            });
         }
 
         if repo::is_ancestor(git, repo, &head, &target).await? {
@@ -165,7 +163,12 @@ pub async fn decide(ctx: SyncCtx<'_>, force_reset: bool) -> Result<TickResult, G
                 Err(e) => return Err(e),
             }
             let moved = describe_move(git, repo, &head, &target, false).await?;
-            return Ok(TickResult { state: SyncState::Idle, head: Some(target.clone()), moved: Some(moved), synced_sha: Some(target) });
+            return Ok(TickResult {
+                state: SyncState::Idle,
+                head: Some(target.clone()),
+                moved: Some(moved),
+                synced_sha: Some(target),
+            });
         }
 
         if repo::is_ancestor(git, repo, &target, &head).await? {
@@ -196,7 +199,12 @@ async fn reset_hard(git: &Git, repo: &Path, head: &str, target: &str) -> Result<
     }
     git.run(repo, &["reset", "--hard", "--quiet", target], Mode::Write).await?;
     let moved = describe_move(git, repo, head, target, true).await?;
-    Ok(TickResult { state: SyncState::Idle, head: Some(target.to_string()), moved: Some(moved), synced_sha: Some(target.to_string()) })
+    Ok(TickResult {
+        state: SyncState::Idle,
+        head: Some(target.to_string()),
+        moved: Some(moved),
+        synced_sha: Some(target.to_string()),
+    })
 }
 
 async fn describe_move(git: &Git, repo: &Path, from: &str, to: &str, reset: bool) -> Result<Moved, GitError> {
@@ -219,7 +227,12 @@ pub async fn discard_changes(git: &Git, repo: &Path) -> Result<(), GitError> {
 
 /// Explicit user action: rename untracked files to `<name>.echo-<timestamp>`.
 /// Returns the new names. Refuses tracked files and paths outside the repo.
-pub async fn move_untracked_aside(git: &Git, repo: &Path, paths: &[String], stamp: i64) -> Result<Vec<String>, GitError> {
+pub async fn move_untracked_aside(
+    git: &Git,
+    repo: &Path,
+    paths: &[String],
+    stamp: i64,
+) -> Result<Vec<String>, GitError> {
     let mut moved = Vec::new();
     for p in paths {
         let rel = Path::new(p);
@@ -252,8 +265,7 @@ pub async fn reset_to_remote(ctx: SyncCtx<'_>) -> Result<TickResult, GitError> {
     if repo::head_branch(git, repo).await?.as_deref() != Some(branch) {
         return Err(GitError::other(format!("{branch} is not checked out")));
     }
-    git.run(repo, &["fetch", "--no-tags", "origin", &branch_refspec(branch)], Mode::Network)
-        .await?;
+    git.run(repo, &["fetch", "--no-tags", "origin", &branch_refspec(branch)], Mode::Network).await?;
     let target = repo::rev_parse(git, repo, &remote_ref(branch))
         .await?
         .ok_or_else(|| GitError::new(GitErrorKind::RemoteGone, format!("origin/{branch} not found")))?;
@@ -261,7 +273,12 @@ pub async fn reset_to_remote(ctx: SyncCtx<'_>) -> Result<TickResult, GitError> {
     if head == target {
         // Still discard any tracked edits, which is what the user asked for.
         discard_changes(git, repo).await?;
-        return Ok(TickResult { state: SyncState::Idle, head: Some(head.clone()), moved: None, synced_sha: Some(head) });
+        return Ok(TickResult {
+            state: SyncState::Idle,
+            head: Some(head.clone()),
+            moved: None,
+            synced_sha: Some(head),
+        });
     }
     reset_hard(git, repo, &head, &target).await
 }
@@ -311,15 +328,15 @@ pub async fn switch(ctx: SyncCtx<'_>, discard: bool) -> Result<SwitchResult, Swi
             return Err(SwitchError::Dirty(dirty));
         }
     }
-    git.run(repo, &["fetch", "--no-tags", "origin", &branch_refspec(branch)], Mode::Network)
-        .await
-        .map_err(|e| match e.kind {
+    git.run(repo, &["fetch", "--no-tags", "origin", &branch_refspec(branch)], Mode::Network).await.map_err(
+        |e| match e.kind {
             GitErrorKind::RemoteGone => SwitchError::Git(GitError::new(
                 GitErrorKind::RemoteGone,
                 format!("{branch} no longer exists on origin"),
             )),
             _ => SwitchError::Git(e),
-        })?;
+        },
+    )?;
 
     let from_branch = repo::head_branch(git, repo).await?;
     let old_head = repo::head_sha(git, repo).await?;
@@ -329,15 +346,12 @@ pub async fn switch(ctx: SyncCtx<'_>, discard: bool) -> Result<SwitchResult, Swi
             git.run(repo, &["switch", "--quiet", branch], Mode::Write).await?;
         } else {
             let start = format!("origin/{branch}");
-            let tracked = git
-                .run(repo, &["switch", "--quiet", "-c", branch, "--track", &start], Mode::Write)
-                .await;
+            let tracked = git.run(repo, &["switch", "--quiet", "-c", branch, "--track", &start], Mode::Write).await;
             match tracked {
                 Ok(_) => {}
                 Err(e) if matches!(e.kind, GitErrorKind::Other) => {
                     // e.g. a narrowed fetch refspec: create without upstream.
-                    git.run(repo, &["switch", "--quiet", "-c", branch, "--no-track", &start], Mode::Write)
-                        .await?;
+                    git.run(repo, &["switch", "--quiet", "-c", branch, "--no-track", &start], Mode::Write).await?;
                 }
                 Err(e) => return Err(e.into()),
             }

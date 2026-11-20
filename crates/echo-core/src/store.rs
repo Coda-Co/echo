@@ -320,10 +320,7 @@ pub fn save_json<T: Serialize>(path: &Path, value: &T) -> std::io::Result<()> {
 }
 
 pub fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -332,7 +329,8 @@ mod tests {
 
     #[test]
     fn defaults_and_unknown_fields_roundtrip() {
-        let json = r#"{"version":0,"futureThing":{"a":1},"repos":[{"id":"x","path":"/r","displayName":"r","weird":true}]}"#;
+        let json =
+            r#"{"version":0,"futureThing":{"a":1},"repos":[{"id":"x","path":"/r","displayName":"r","weird":true}]}"#;
         let c: Config = serde_json::from_str(json).unwrap();
         assert!(c.launch_at_login);
         assert_eq!(c.branch_poll_seconds, 15);
@@ -369,7 +367,10 @@ mod tests {
     fn flags_merge_and_dismiss() {
         let mut r = RepoState::default();
         assert!(r.raise_flags(vec![(FlagKind::Deps, vec!["a".into()])], 1));
-        r.raise_flags(vec![(FlagKind::Deps, vec!["a".into(), "b".into()]), (FlagKind::Env, vec![".env.example".into()])], 2);
+        r.raise_flags(
+            vec![(FlagKind::Deps, vec!["a".into(), "b".into()]), (FlagKind::Env, vec![".env.example".into()])],
+            2,
+        );
         assert_eq!(r.active_flags.len(), 2);
         assert_eq!(r.active_flags[0].files, vec!["a", "b"]);
         assert_eq!(r.active_flags[0].at, 2);

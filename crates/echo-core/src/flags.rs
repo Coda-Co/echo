@@ -40,12 +40,8 @@ pub const DEFAULT_DEPS: &[&str] = &[
     "**/Cargo.lock",
 ];
 
-pub const DEFAULT_MIGRATIONS: &[&str] = &[
-    "**/migrations/**",
-    "**/prisma/schema.prisma",
-    "**/drizzle/**",
-    "**/supabase/migrations/**",
-];
+pub const DEFAULT_MIGRATIONS: &[&str] =
+    &["**/migrations/**", "**/prisma/schema.prisma", "**/drizzle/**", "**/supabase/migrations/**"];
 
 pub const DEFAULT_ENV: &[&str] = &["**/.env.example", "**/.env.sample"];
 
@@ -152,7 +148,10 @@ mod tests {
             "requirements-dev.txt",
         ]));
         let deps = &got.iter().find(|(k, _)| *k == FlagKind::Deps).unwrap().1;
-        assert_eq!(deps, &files(&["package.json", "apps/web/package.json", "pnpm-lock.yaml", "bun.lockb", "requirements-dev.txt"]));
+        assert_eq!(
+            deps,
+            &files(&["package.json", "apps/web/package.json", "pnpm-lock.yaml", "bun.lockb", "requirements-dev.txt"])
+        );
         let mig = &got.iter().find(|(k, _)| *k == FlagKind::Migrations).unwrap().1;
         assert_eq!(mig, &files(&["db/migrations/0001_init.sql", "prisma/schema.prisma"]));
         assert!(got.iter().any(|(k, _)| *k == FlagKind::Env));

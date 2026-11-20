@@ -70,7 +70,9 @@ pub enum SyncState {
     Switching,
     Idle,
     Pulling,
-    Paused { reason: PauseReason },
+    Paused {
+        reason: PauseReason,
+    },
     /// Tracked files modified, or untracked files in the way.
     #[serde(rename_all = "camelCase")]
     BlockedDirty {
@@ -79,14 +81,22 @@ pub enum SyncState {
         /// Every modified file differs only in line endings.
         crlf_hint: bool,
     },
-    BlockedLocalCommits { commits: Vec<CommitSummary> },
+    BlockedLocalCommits {
+        commits: Vec<CommitSummary>,
+    },
     /// Remote rewritten and local has its own commits.
-    BlockedDiverged { commits: Vec<CommitSummary> },
+    BlockedDiverged {
+        commits: Vec<CommitSummary>,
+    },
     /// Remote rewritten, local is clean, policy is "ask".
     #[serde(rename_all = "camelCase")]
-    BlockedForcePush { remote_sha: String },
+    BlockedForcePush {
+        remote_sha: String,
+    },
     RemoteBranchDeleted,
-    Error { error: GitError },
+    Error {
+        error: GitError,
+    },
 }
 
 impl SyncState {
@@ -124,10 +134,9 @@ impl SyncState {
             SyncState::Idle => "up to date".into(),
             SyncState::Pulling => "pulling…".into(),
             SyncState::Paused { reason: PauseReason::User } => "paused".into(),
-            SyncState::Paused { reason: PauseReason::CheckoutChanged { current } } => format!(
-                "paused: checkout changed to {}",
-                current.as_deref().unwrap_or("a detached HEAD")
-            ),
+            SyncState::Paused { reason: PauseReason::CheckoutChanged { current } } => {
+                format!("paused: checkout changed to {}", current.as_deref().unwrap_or("a detached HEAD"))
+            }
             SyncState::Paused { reason: PauseReason::GitOperation } => "waiting: git operation in progress".into(),
             SyncState::BlockedDirty { files, untracked, .. } => {
                 format!("blocked: {} local change(s)", files.len() + untracked.len())
@@ -155,11 +164,25 @@ pub struct SyncStatus {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SyncEventKind {
     #[serde(rename_all = "camelCase")]
-    Pulled { from: String, to: String, count: u32, subject: String, reset: bool },
+    Pulled {
+        from: String,
+        to: String,
+        count: u32,
+        subject: String,
+        reset: bool,
+    },
     #[serde(rename_all = "camelCase")]
-    Switched { from: Option<String>, to: String, sha: String },
-    Blocked { message: String },
-    Error { message: String },
+    Switched {
+        from: Option<String>,
+        to: String,
+        sha: String,
+    },
+    Blocked {
+        message: String,
+    },
+    Error {
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]

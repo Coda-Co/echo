@@ -156,9 +156,8 @@ impl Git {
         no_window(&mut cmd);
 
         let timeout = if mode == Mode::Network { NETWORK_TIMEOUT } else { LOCAL_TIMEOUT };
-        let child = cmd
-            .spawn()
-            .map_err(|e| GitError::new(GitErrorKind::GitNotFound, format!("could not run git: {e}")))?;
+        let child =
+            cmd.spawn().map_err(|e| GitError::new(GitErrorKind::GitNotFound, format!("could not run git: {e}")))?;
         match tokio::time::timeout(timeout, child.wait_with_output()).await {
             Err(_) => Err(GitError::new(
                 if mode == Mode::Network { GitErrorKind::Network } else { GitErrorKind::Other },
@@ -402,12 +401,8 @@ pub fn classify(stderr: &str) -> GitError {
 
 /// First meaningful line(s) of stderr, for display.
 fn summarize(stderr: &str) -> String {
-    let lines: Vec<&str> = stderr
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with("hint:"))
-        .take(3)
-        .collect();
+    let lines: Vec<&str> =
+        stderr.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with("hint:")).take(3).collect();
     if lines.is_empty() {
         "git failed".into()
     } else {
@@ -431,10 +426,7 @@ mod tests {
     #[test]
     fn ls_remote_parsing() {
         let out = "aaa\trefs/heads/main\nbbb\trefs/heads/claude/foo-bar\nccc\trefs/tags/v1\n";
-        assert_eq!(
-            parse_ls_remote(out),
-            vec![("main".into(), "aaa".into()), ("claude/foo-bar".into(), "bbb".into())]
-        );
+        assert_eq!(parse_ls_remote(out), vec![("main".into(), "aaa".into()), ("claude/foo-bar".into(), "bbb".into())]);
         assert!(parse_ls_remote("").is_empty());
     }
 
@@ -459,10 +451,7 @@ mod tests {
     #[test]
     fn would_overwrite_parsing() {
         let err = "error: The following untracked working tree files would be overwritten by merge:\n\tfoo.txt\n\tdir/bar.txt\nPlease move or remove them before you merge.\nAborting\n";
-        assert_eq!(
-            parse_would_overwrite(err),
-            Some((vec!["foo.txt".into(), "dir/bar.txt".into()], true))
-        );
+        assert_eq!(parse_would_overwrite(err), Some((vec!["foo.txt".into(), "dir/bar.txt".into()], true)));
         let err = "error: Your local changes to the following files would be overwritten by checkout:\n\ta.txt\nPlease commit your changes or stash them before you switch branches.\nAborting\n";
         assert_eq!(parse_would_overwrite(err), Some((vec!["a.txt".into()], false)));
     }
@@ -479,12 +468,18 @@ mod tests {
             k("fatal: could not read Username for 'https://github.com': terminal prompts disabled"),
             GitErrorKind::Auth
         );
-        assert_eq!(k("git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository."), GitErrorKind::Auth);
+        assert_eq!(
+            k("git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository."),
+            GitErrorKind::Auth
+        );
         assert_eq!(
             k("fatal: unable to access 'https://github.com/x/': Could not resolve host: github.com"),
             GitErrorKind::Network
         );
-        assert_eq!(k("ssh: Could not resolve hostname github.com: nodename nor servname provided"), GitErrorKind::Network);
+        assert_eq!(
+            k("ssh: Could not resolve hostname github.com: nodename nor servname provided"),
+            GitErrorKind::Network
+        );
         assert_eq!(k("fatal: Not possible to fast-forward, aborting."), GitErrorKind::NotFastForward);
         assert_eq!(k("fatal: couldn't find remote ref claude/gone"), GitErrorKind::RemoteGone);
         assert_eq!(k("fatal: not a git repository (or any of the parent directories): .git"), GitErrorKind::NotARepo);

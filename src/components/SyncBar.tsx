@@ -55,17 +55,12 @@ export function SyncBar({ repo }: { repo: RepoSummary }) {
 
   return (
     <section aria-label="Sync bar" className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <div className="flex items-center gap-2">
         {working ? <Spinner /> : <Dot tone={tone} />}
-        <span className="text-sm">
+        <span className="min-w-0 truncate text-sm">
           Syncing <code className="font-mono font-semibold">{branch}</code>
         </span>
-        <span className="text-xs text-zinc-500" data-testid="sync-state">
-          · {stateLabel(state)}
-          {sync.lastChecked && !working && <> · checked {relativeTime(sync.lastChecked, now)}</>}
-          {sync.head && state.kind === "idle" && <> · {shortSha(sync.head)}</>}
-        </span>
-        <div className="ml-auto flex gap-1.5">
+        <div className="ml-auto flex shrink-0 gap-1.5">
           {paused ? (
             <Button disabled={busy} onClick={() => act(() => ipc.resumeSync(id))}>
               Resume
@@ -82,6 +77,11 @@ export function SyncBar({ repo }: { repo: RepoSummary }) {
             Stop syncing
           </Button>
         </div>
+      </div>
+      <div className="mt-0.5 pl-4 text-xs text-zinc-500" data-testid="sync-state">
+        {stateLabel(state)}
+        {sync.lastChecked && !working && <> · checked {relativeTime(sync.lastChecked, now)}</>}
+        {sync.head && state.kind === "idle" && <> · {shortSha(sync.head)}</>}
       </div>
       <BlockedPanel state={state} branch={branch} actions={actions} />
       {lastEvent && lastEvent.branch === branch && <LastEvent event={lastEvent} now={now} />}
@@ -106,7 +106,7 @@ function LastEvent({ event, now }: { event: SyncEvent; now: number }) {
       return null;
   }
   return (
-    <div className="mt-1 truncate text-[11px] text-zinc-500">
+    <div className="mt-0.5 truncate pl-4 text-[11px] text-zinc-500">
       {text} · {relativeTime(event.at, now)}
     </div>
   );

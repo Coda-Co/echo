@@ -16,13 +16,12 @@ pub async fn validate(git: &Git, picked: &Path) -> Result<ValidatedRepo, GitErro
     if !picked.is_dir() {
         return Err(GitError::new(GitErrorKind::NotARepo, format!("{} is not a folder", picked.display())));
     }
-    let top = git
-        .run(picked, &["rev-parse", "--show-toplevel"], Mode::Read)
-        .await
-        .map_err(|e| match e.kind {
-            GitErrorKind::NotARepo => GitError::new(GitErrorKind::NotARepo, format!("{} is not inside a git repository", picked.display())),
-            _ => e,
-        })?;
+    let top = git.run(picked, &["rev-parse", "--show-toplevel"], Mode::Read).await.map_err(|e| match e.kind {
+        GitErrorKind::NotARepo => {
+            GitError::new(GitErrorKind::NotARepo, format!("{} is not inside a git repository", picked.display()))
+        }
+        _ => e,
+    })?;
     let toplevel = PathBuf::from(top.trim());
     let toplevel = dunce_canonical(&toplevel);
     let origin_url = git
@@ -77,9 +76,7 @@ pub async fn rev_parse(git: &Git, repo: &Path, rev: &str) -> Result<Option<Strin
 
 /// Modified tracked files (untracked files are ignored).
 pub async fn dirty_files(git: &Git, repo: &Path) -> Result<Vec<String>, GitError> {
-    let out = git
-        .run(repo, &["status", "--porcelain=v1", "-z", "--untracked-files=no"], Mode::Read)
-        .await?;
+    let out = git.run(repo, &["status", "--porcelain=v1", "-z", "--untracked-files=no"], Mode::Read).await?;
     Ok(parse_status_z(&out))
 }
 
