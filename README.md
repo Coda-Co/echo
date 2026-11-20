@@ -8,6 +8,8 @@ stripped back to that one job.
 
 Internal Coda tool. macOS (Apple Silicon and Intel) and Windows x64.
 
+**[Download the latest release →](https://github.com/Coda-Co/echo/releases/latest)**
+
 ## How it works
 
 1. Cloud agents each push to their own branch (`claude/...`).
@@ -31,8 +33,13 @@ whatever your install command is).
 
 ## Install (unsigned builds)
 
-Download the `.dmg` (macOS) or `.msi` / `-setup.exe` (Windows) from the
-GitHub release.
+Download from the [latest release](https://github.com/Coda-Co/echo/releases/latest)
+(older versions are on the [releases page](https://github.com/Coda-Co/echo/releases)):
+
+- **macOS:** `Echo_<version>_universal.dmg` (Apple Silicon and Intel)
+- **Windows:** `Echo_<version>_x64-setup.exe`, or the `.msi` if you prefer
+
+The builds are unsigned, so the first launch needs one extra step:
 
 - **macOS:** the app isn't notarised. On first launch, right-click Echo in
   Applications and choose **Open**, or run:
