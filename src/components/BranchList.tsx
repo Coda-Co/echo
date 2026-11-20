@@ -29,7 +29,7 @@ export function BranchList({ repo }: { repo: RepoSummary }) {
 
   const setFilter = (f: BranchFilter) => run(() => ipc.updateRepoConfig(repo.id, { branchFilter: f }));
 
-  const onClick = (name: string, hasDot: boolean) => {
+  const onPreview = (name: string, hasDot: boolean) => {
     setSelected(name === selected ? null : name);
     if (hasDot) void run(() => ipc.markSeen(repo.id, name));
   };
@@ -91,8 +91,8 @@ export function BranchList({ repo }: { repo: RepoSummary }) {
               branch={b}
               now={now}
               selected={b.name === selected}
-              onClick={() => onClick(b.name, !b.deleted && b.status.kind !== "seen")}
               onSwitch={() => startSync(repo.id, b.name)}
+              onPreview={() => onPreview(b.name, b.status.kind !== "seen")}
             />
           ))}
         </ul>
@@ -102,7 +102,6 @@ export function BranchList({ repo }: { repo: RepoSummary }) {
             name={selectedBranch.name}
             sha={selectedBranch.sha}
             deleted={selectedBranch.deleted}
-            onClose={() => setSelected(null)}
           />
         )}
       </div>
@@ -160,9 +159,8 @@ function BranchDetail(props: {
   name: string;
   sha: string;
   deleted: boolean;
-  onClose: () => void;
 }) {
-  const { repoId, name, sha, deleted, onClose } = props;
+  const { repoId, name, sha, deleted } = props;
   const [commits, setCommits] = useState<CommitSummary[] | null>(null);
   const [width, setWidth] = usePanelWidth();
   const now = useNow(30_000);
@@ -187,12 +185,6 @@ function BranchDetail(props: {
       className="relative flex shrink-0 flex-col border-l border-zinc-200 bg-zinc-50/60 dark:border-zinc-700 dark:bg-zinc-900/60"
     >
       <ResizeHandle width={width} onResize={setWidth} />
-      <div className="flex items-start gap-2 border-b border-zinc-200 p-3 dark:border-zinc-700">
-        <div className="min-w-0 flex-1 break-all font-mono text-xs font-semibold">{name}</div>
-        <button aria-label="Close details" className="text-zinc-400 hover:text-zinc-700" onClick={onClose}>
-          ✕
-        </button>
-      </div>
       <div className="px-3 pt-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Recent commits</div>
       <ol className="min-h-0 flex-1 overflow-y-auto px-3 py-1">
         {commits === null && !deleted && (
@@ -242,7 +234,7 @@ function ResizeHandle({ width, onResize }: { width: number; onResize: (w: number
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize branch preview"
+      aria-label="Resize branch history"
       aria-valuenow={width}
       tabIndex={0}
       onPointerDown={(e) => {

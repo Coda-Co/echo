@@ -27,7 +27,7 @@ export function SyncBar({ repo }: { repo: RepoSummary }) {
         <div className="flex items-center gap-2 text-sm">
           <Dot tone="muted" />
           <span className="text-zinc-600 dark:text-zinc-300">Not syncing.</span>
-          <span className="text-xs text-zinc-500">Select a branch to preview it, then press Switch to check it out and keep it synced.</span>
+          <span className="text-xs text-zinc-500">Click a branch to check it out and keep it synced.</span>
         </div>
         <Flags repo={repo} />
       </section>
@@ -58,19 +58,18 @@ export function SyncBar({ repo }: { repo: RepoSummary }) {
       <div className="flex items-center gap-2">
         {working ? <Spinner /> : <Dot tone={tone} />}
         <span className="min-w-0 truncate text-sm">
-          Syncing <code className="font-mono font-semibold">{branch}</code>
+          {paused ? "Paused on" : "Syncing"} <code className="font-mono font-semibold">{branch}</code>
         </span>
-        <div className="ml-auto flex shrink-0 gap-1.5">
-          {paused ? (
-            <Button disabled={busy} onClick={() => act(() => ipc.resumeSync(id))}>
-              Resume
-            </Button>
-          ) : (
-            <Button disabled={busy || working} onClick={() => act(() => ipc.pauseSync(id))}>
-              Pause
-            </Button>
-          )}
-        </div>
+        <Button
+          variant="ghost"
+          aria-label={paused ? "Resume syncing" : "Pause syncing"}
+          title={paused ? "Resume syncing" : "Pause syncing (keeps the checkout where it is)"}
+          disabled={busy || (!paused && working)}
+          onClick={() => act(() => (paused ? ipc.resumeSync(id) : ipc.pauseSync(id)))}
+          className="!h-6 shrink-0 !px-1.5"
+        >
+          {paused ? <PlayIcon /> : <PauseIcon />}
+        </Button>
       </div>
       <div className="mt-0.5 pl-4 text-xs text-zinc-500" data-testid="sync-state">
         {stateLabel(state)}
@@ -148,5 +147,22 @@ function Flags({ repo }: { repo: RepoSummary }) {
         );
       })}
     </div>
+  );
+}
+
+function PauseIcon() {
+  return (
+    <svg aria-hidden width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+      <rect x="2.5" y="2" width="2.5" height="8" rx="0.5" />
+      <rect x="7" y="2" width="2.5" height="8" rx="0.5" />
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg aria-hidden width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+      <path d="M3 2.2v7.6a.5.5 0 0 0 .76.43l6.2-3.8a.5.5 0 0 0 0-.86l-6.2-3.8A.5.5 0 0 0 3 2.2Z" />
+    </svg>
   );
 }

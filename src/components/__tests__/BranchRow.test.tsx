@@ -17,7 +17,7 @@ const base: BranchInfo = {
   deleted: false,
 };
 
-function renderRow(b: Partial<BranchInfo>, handlers = { onClick: vi.fn(), onSwitch: vi.fn() }) {
+function renderRow(b: Partial<BranchInfo>, handlers = { onSwitch: vi.fn(), onPreview: vi.fn() }) {
   render(
     <ul>
       <BranchRow branch={{ ...base, ...b }} selected={false} now={now} {...handlers} />
@@ -51,22 +51,36 @@ describe("BranchRow", () => {
     expect(!!screen.queryByLabelText("Unseen activity")).toBe(dot);
   });
 
-  it("clicking the row previews it without switching", async () => {
+  it("clicking the row switches to it", async () => {
     const h = renderRow({});
     await userEvent.click(screen.getByTestId("branch-claude/add-filters"));
-    expect(h.onClick).toHaveBeenCalled();
+    expect(h.onSwitch).toHaveBeenCalledOnce();
+    expect(h.onPreview).not.toHaveBeenCalled();
+  });
+
+  it.each([[{ isSynced: true }], [{ deleted: true }]] as [Partial<BranchInfo>][])(
+    "clicking the row does nothing for %j",
+    async (patch) => {
+      const h = renderRow(patch);
+      await userEvent.click(screen.getByTestId("branch-claude/add-filters"));
+      expect(h.onSwitch).not.toHaveBeenCalled();
+    },
+  );
+
+  it("History opens the history panel without switching", async () => {
+    const h = renderRow({});
+    await userEvent.click(screen.getByRole("button", { name: "Show history of claude/add-filters" }));
+    expect(h.onPreview).toHaveBeenCalledOnce();
     expect(h.onSwitch).not.toHaveBeenCalled();
   });
 
-  it("Switch switches without also toggling the preview", async () => {
-    const h = renderRow({});
-    await userEvent.click(screen.getByRole("button", { name: "Switch to claude/add-filters" }));
-    expect(h.onSwitch).toHaveBeenCalledOnce();
-    expect(h.onClick).not.toHaveBeenCalled();
+  it("synced branches still have History", () => {
+    renderRow({ isSynced: true });
+    expect(screen.getByRole("button", { name: "Show history of claude/add-filters" })).toBeInTheDocument();
   });
 
-  it.each([[{ isSynced: true }], [{ deleted: true }]] as [Partial<BranchInfo>][])("no Switch button for %j", (patch) => {
-    renderRow(patch);
-    expect(screen.queryByRole("button", { name: /Switch to/ })).toBeNull();
+  it("no History button for deleted branches", () => {
+    renderRow({ deleted: true });
+    expect(screen.queryByRole("button", { name: /history/i })).toBeNull();
   });
 });
