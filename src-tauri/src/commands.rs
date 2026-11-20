@@ -153,8 +153,3 @@ pub fn open_in_file_manager(state: State<'_, AppState>, id: String) -> R<()> {
 pub fn open_in_terminal(state: State<'_, AppState>, id: String) -> R<()> {
     crate::platform::open_in_terminal(&repo_path(&state, &id)?).map_err(|e| invalid(e.to_string()))
 }
-
-#[tauri::command]
-pub fn take_pending_focus(state: State<'_, AppState>) -> Option<String> {
-    state.take_pending_focus()
-}

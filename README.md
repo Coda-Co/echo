@@ -109,7 +109,6 @@ release.
 ## Known limitations
 
 - Builds are unsigned and there's no auto-update yet.
-- Clicking a notification brings Echo forward on the repo it was about only
-  when the OS activates the app on click (macOS does; Windows varies). Tauri's
-  desktop notifications don't report clicks.
+- Notifications are informational. Activity never changes the selected repo
+  or branch: it shows as dots until you pick what to look at.
 - Only the `origin` remote is watched. Submodules and LFS get no special handling.

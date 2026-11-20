@@ -61,8 +61,6 @@ export const ipc = {
   defaultFlagPatterns: () => invoke<DefaultPatterns>("default_flag_patterns"),
   openInFileManager: (id: string) => invoke<void>("open_in_file_manager", { id }),
   openInTerminal: (id: string) => invoke<void>("open_in_terminal", { id }),
-  /** The repo a clicked notification asked us to show, if any (consumed). */
-  takePendingFocus: () => invoke<string | null>("take_pending_focus"),
 };
 
 export interface EventPayloads {
@@ -72,6 +70,7 @@ export interface EventPayloads {
   "sync-event": { repoId: string; event: SyncEvent };
   "flags-changed": { repoId: string; flags: ActiveFlag[] };
   "settings-changed": null;
+  /** Only sent after the user picks a branch in the tray menu that needs a decision. */
   "focus-repo": { repoId: string };
 }
 

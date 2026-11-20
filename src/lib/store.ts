@@ -61,15 +61,10 @@ export const useEcho = create<EchoState>((set, get) => ({
       on("settings-changed", async () => set({ settings: await ipc.getSettings(), appInfo: await ipc.appInfo() })),
       on("focus-repo", ({ repoId }) => get().select(repoId)),
     ]);
-    const [appInfo, settings, repos, pending] = await Promise.all([
-      ipc.appInfo(),
-      ipc.getSettings(),
-      ipc.listRepos(),
-      ipc.takePendingFocus(),
-    ]);
+    const [appInfo, settings, repos] = await Promise.all([ipc.appInfo(), ipc.getSettings(), ipc.listRepos()]);
+    // Restore the user's last selection; activity elsewhere only shows as dots.
     const saved = readSelected();
-    const selectedId =
-      [pending, saved].find((id) => id && repos.some((r) => r.id === id)) ?? repos[0]?.id ?? null;
+    const selectedId = (saved && repos.some((r) => r.id === saved) ? saved : repos[0]?.id) ?? null;
     set({ appInfo, settings, repos, ready: true });
     get().select(selectedId);
     return () => unlisten.forEach((u) => u());

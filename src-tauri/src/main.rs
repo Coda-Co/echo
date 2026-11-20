@@ -9,8 +9,7 @@ mod platform;
 mod tray;
 
 use echo_core::{Core, CoreEvent, EventSink};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt as _};
 use tauri_plugin_notification::NotificationExt;
@@ -19,19 +18,6 @@ pub const HIDDEN_ARG: &str = "--hidden";
 
 pub struct AppState {
     pub core: Core,
-    /// Repo of the most recent notification, so bringing the window up right
-    /// after one shows that repo.
-    pub pending_focus: Mutex<Option<(String, Instant)>>,
-}
-
-impl AppState {
-    pub fn take_pending_focus(&self) -> Option<String> {
-        let mut p = self.pending_focus.lock().unwrap_or_else(|e| e.into_inner());
-        match p.take() {
-            Some((id, at)) if at.elapsed() < Duration::from_secs(120) => Some(id),
-            _ => None,
-        }
-    }
 }
 
 /// Forwards core events to the webview, the tray and the OS notification centre.
@@ -58,11 +44,9 @@ impl EventSink for TauriSink {
                 app.emit("flags-changed", serde_json::json!({ "repoId": repo_id, "flags": flags }))
             }
             CoreEvent::SettingsChanged => app.emit("settings-changed", ()),
-            CoreEvent::Notify { repo_id, title, body } => {
-                if let Some(state) = app.try_state::<AppState>() {
-                    *state.pending_focus.lock().unwrap_or_else(|e| e.into_inner()) =
-                        Some((repo_id.clone(), Instant::now()));
-                }
+            // Notifications are informational only: they never change the
+            // selected repo or branch.
+            CoreEvent::Notify { title, body, .. } => {
                 if let Err(e) = app.notification().builder().title(title).body(body).show() {
                     log::warn!("notification failed: {e}");
                 }
@@ -83,11 +67,6 @@ pub fn show_main(app: &AppHandle) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
-    }
-    if let Some(state) = app.try_state::<AppState>() {
-        if let Some(id) = state.take_pending_focus() {
-            let _ = app.emit("focus-repo", serde_json::json!({ "repoId": id }));
-        }
     }
 }
 
@@ -141,7 +120,7 @@ fn main() {
             let version = app.package_info().version.to_string();
             let core = tauri::async_runtime::block_on(Core::start(data_dir, sink, &version));
             let settings = core.get_settings();
-            app.manage(AppState { core, pending_focus: Mutex::new(None) });
+            app.manage(AppState { core });
 
             tray::create(&handle)?;
             apply_autostart(&handle, settings.launch_at_login);
@@ -160,11 +139,9 @@ fn main() {
             }
             WindowEvent::Focused(true) => {
                 let app = window.app_handle();
+                // Focus only speeds up polling; it never changes the selection.
                 if let Some(state) = app.try_state::<AppState>() {
                     state.core.on_focus();
-                    if let Some(id) = state.take_pending_focus() {
-                        let _ = app.emit("focus-repo", serde_json::json!({ "repoId": id }));
-                    }
                 }
             }
             _ => {}
@@ -193,7 +170,6 @@ fn main() {
             commands::default_flag_patterns,
             commands::open_in_file_manager,
             commands::open_in_terminal,
-            commands::take_pending_focus,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Echo");

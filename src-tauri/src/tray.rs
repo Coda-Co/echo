@@ -9,7 +9,7 @@ use std::time::Duration;
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 const TRAY_ID: &str = "echo";
 
@@ -155,12 +155,15 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
                     _ => Ok(()),
                 };
                 if let Err(e) = r {
-                    // Blocked switches need a decision in the window.
+                    // The user picked this repo's branch from the tray, but the
+                    // switch needs a decision (e.g. local changes): open the
+                    // window on that repo so they can make it.
                     log::warn!("tray action {action} failed: {}", e.message);
-                    *app.state::<AppState>().pending_focus.lock().unwrap_or_else(|e| e.into_inner()) =
-                        Some((repo.clone(), std::time::Instant::now()));
                     let app2 = app.clone();
-                    let _ = app.run_on_main_thread(move || show_main(&app2));
+                    let _ = app.run_on_main_thread(move || {
+                        show_main(&app2);
+                        let _ = app2.emit("focus-repo", serde_json::json!({ "repoId": repo }));
+                    });
                 }
             });
         }
