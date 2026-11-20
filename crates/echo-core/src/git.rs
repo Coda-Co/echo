@@ -40,6 +40,7 @@ pub enum GitErrorKind {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, thiserror::Error)]
 #[error("{message}")]
 pub struct GitError {
+    #[serde(flatten)]
     pub kind: GitErrorKind,
     pub message: String,
 }
@@ -492,6 +493,17 @@ mod tests {
             GitErrorKind::WouldOverwrite { untracked: true, .. }
         ));
         assert_eq!(k("something odd"), GitErrorKind::Other);
+    }
+
+    #[test]
+    fn error_serialises_flat() {
+        let e = GitError::new(GitErrorKind::WouldOverwrite { paths: vec!["a".into()], untracked: true }, "m");
+        assert_eq!(
+            serde_json::to_value(&e).unwrap(),
+            serde_json::json!({"kind": "wouldOverwrite", "paths": ["a"], "untracked": true, "message": "m"})
+        );
+        let e = GitError::new(GitErrorKind::Auth, "m");
+        assert_eq!(serde_json::to_value(&e).unwrap(), serde_json::json!({"kind": "auth", "message": "m"}));
     }
 
     #[test]
