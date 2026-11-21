@@ -106,6 +106,9 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
 }
 
 fn main() {
+    if platform::relaunch_if_redirection_restricted() {
+        return;
+    }
     let app = tauri::Builder::default()
         // Must be first: a second launch focuses the existing window.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
