@@ -1017,6 +1017,55 @@ impl Core {
         Ok(repo::log(&git, &h.path, &r, n.clamp(1, 100)).await?)
     }
 
+    /// Delete `branch` on origin. `sha` is the tip the user was shown: the
+    /// push carries it as a lease, so commits an agent pushed since are never
+    /// thrown away. Refuses the synced branch and origin's default branch.
+    /// Local branches are left alone.
+    pub async fn delete_remote_branch(&self, id: &str, branch: &str, sha: &str) -> CmdResult<()> {
+        let h = self.handle(id)?;
+        let rc = self.repo_config(id).ok_or_else(|| CmdError::not_found("repo"))?;
+        if rc.synced_branch.as_deref() == Some(branch) {
+            return Err(CmdError::new(CmdErrorKind::Invalid, "Stop syncing this branch before deleting it"));
+        }
+        let tip = h.rt().snapshot.branches.iter().find(|b| !b.deleted && b.name == branch).map(|b| b.sha.clone());
+        match tip {
+            None => return Err(CmdError::not_found("branch")),
+            Some(t) if t != sha => {
+                return Err(CmdError::new(
+                    CmdErrorKind::Invalid,
+                    format!("{branch} has new commits. Check them, then delete again."),
+                ))
+            }
+            Some(_) => {}
+        }
+        let git = self.git()?;
+        let _g = h.lock.lock().await;
+        let default = git.run(&h.path, &["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], Mode::Read);
+        if default.await.is_ok_and(|d| d.trim() == format!("origin/{branch}")) {
+            return Err(CmdError::new(CmdErrorKind::Invalid, "That's origin's default branch; Echo won't delete it"));
+        }
+        let lease = format!("--force-with-lease=refs/heads/{branch}:{sha}");
+        let refspec = format!(":refs/heads/{branch}");
+        let out = git.exec(&h.path, &["push", "--no-verify", &lease, "origin", &refspec], Mode::Network).await?;
+        if !out.success() {
+            if out.stderr.contains("stale info") || out.stderr.contains("fetch first") {
+                return Err(CmdError::new(
+                    CmdErrorKind::Invalid,
+                    format!("{branch} changed on origin. Check it, then delete again."),
+                ));
+            }
+            return Err(crate::git::classify(&out.stderr).into());
+        }
+        // The next poll would notice too; dropping the tracking ref now keeps
+        // the list from briefly showing the branch as still there.
+        let tracking = format!("refs/remotes/origin/{branch}");
+        let _ = git.run(&h.path, &["update-ref", "-d", &tracking, sha], Mode::Write).await;
+        drop(_g);
+        h.rt().cache.invalidate();
+        h.wake_poll.notify_one();
+        Ok(())
+    }
+
     /// Switch the checkout to `branch` and start syncing it.
     pub async fn start_sync(&self, id: &str, branch: &str, discard: bool) -> CmdResult<SyncStatus> {
         let h = self.handle(id)?;

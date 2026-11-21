@@ -193,6 +193,8 @@ fn main() {
             commands::get_pull_requests,
             commands::open_on_github,
             commands::open_pull_request,
+            commands::open_branches_on_github,
+            commands::delete_remote_branch,
             commands::dev_server_start,
             commands::dev_server_stop,
             commands::dev_server_restart,

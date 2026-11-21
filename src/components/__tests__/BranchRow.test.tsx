@@ -17,7 +17,9 @@ const base: BranchInfo = {
   deleted: false,
 };
 
-function renderRow(b: Partial<BranchInfo>, handlers = { onSwitch: vi.fn(), onPreview: vi.fn() }, syncPaused = false) {
+type Handlers = { onSwitch: () => void; onPreview: () => void; onDelete?: () => void };
+
+function renderRow(b: Partial<BranchInfo>, handlers: Handlers = { onSwitch: vi.fn(), onPreview: vi.fn() }, syncPaused = false) {
   render(
     <ul>
       <BranchRow branch={{ ...base, ...b }} selected={false} now={now} syncPaused={syncPaused} {...handlers} />
@@ -139,5 +141,18 @@ describe("BranchRow", () => {
   it("no History button for deleted branches", () => {
     renderRow({ deleted: true });
     expect(screen.queryByRole("button", { name: /history/i })).toBeNull();
+  });
+
+  it("Delete asks to delete without switching", async () => {
+    const h = { onSwitch: vi.fn(), onPreview: vi.fn(), onDelete: vi.fn() };
+    renderRow({}, h);
+    await userEvent.click(screen.getByRole("button", { name: "Delete claude/add-filters" }));
+    expect(h.onDelete).toHaveBeenCalledOnce();
+    expect(h.onSwitch).not.toHaveBeenCalled();
+  });
+
+  it.each([{ isSynced: true }, { deleted: true }])("no Delete button for %j", (patch) => {
+    renderRow(patch, { onSwitch: vi.fn(), onPreview: vi.fn(), onDelete: vi.fn() });
+    expect(screen.queryByRole("button", { name: /^Delete/ })).toBeNull();
   });
 });

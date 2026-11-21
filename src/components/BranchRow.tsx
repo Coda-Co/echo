@@ -1,6 +1,6 @@
 import { branchBadge, relativeTime } from "../lib/format";
 import type { BranchInfo, PullRequest } from "../lib/types";
-import { Badge, Button, Dot, PauseIcon, PullRequestIcon, SyncIcon } from "./ui";
+import { Badge, Button, Dot, PauseIcon, PullRequestIcon, SyncIcon, TrashIcon } from "./ui";
 
 interface Props {
   branch: BranchInfo;
@@ -18,9 +18,11 @@ interface Props {
   onSwitch: () => void;
   /** History button: toggle the history panel for this branch. */
   onPreview: () => void;
+  /** Delete button: ask to delete this branch on origin. Not offered for the synced branch. */
+  onDelete?: () => void;
 }
 
-export function BranchRow({ branch: b, selected, now, syncPaused = false, pr, onOpenPr, onMarkSeen, onSwitch, onPreview }: Props) {
+export function BranchRow({ branch: b, selected, now, syncPaused = false, pr, onOpenPr, onMarkSeen, onSwitch, onPreview, onDelete }: Props) {
   const badge = branchBadge(b);
   const dot = !b.deleted && b.status.kind !== "seen";
   const canSwitch = !b.deleted && !b.isSynced;
@@ -92,20 +94,37 @@ export function BranchRow({ branch: b, selected, now, syncPaused = false, pr, on
         </div>
       </div>
       {!b.deleted && (
-        <Button
-          aria-label={`${selected ? "Hide history of" : "Show history of"} ${b.name}`}
-          aria-pressed={selected}
-          title="Show recent commits without switching"
-          onClick={(e) => {
-            e.stopPropagation();
-            onPreview();
-          }}
-          className={`absolute right-3 top-1/2 -translate-y-1/2 shadow-sm ${
-            selected ? "" : "pointer-events-none opacity-0 focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
+        <div
+          className={`absolute right-3 top-1/2 flex -translate-y-1/2 gap-1 ${
+            selected ? "" : "pointer-events-none opacity-0 focus-within:pointer-events-auto focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
           }`}
         >
-          {selected ? "Hide" : "History"}
-        </Button>
+          {onDelete && !b.isSynced && (
+            <Button
+              aria-label={`Delete ${b.name}`}
+              title="Delete this branch on origin"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="px-1.5 text-zinc-500 shadow-sm hover:text-red-600 dark:hover:text-red-400"
+            >
+              <TrashIcon />
+            </Button>
+          )}
+          <Button
+            aria-label={`${selected ? "Hide history of" : "Show history of"} ${b.name}`}
+            aria-pressed={selected}
+            title="Show recent commits without switching"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPreview();
+            }}
+            className="shadow-sm"
+          >
+            {selected ? "Hide" : "History"}
+          </Button>
+        </div>
       )}
     </li>
   );

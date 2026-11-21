@@ -629,3 +629,41 @@ async fn core_end_to_end() {
     core.remove_repo(&id).unwrap();
     assert!(core.list_repos().is_empty());
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn delete_remote_branch_with_lease() {
+    let fx = Fx::new().await;
+    let old = fx.agent_commit("claude/done", "d.txt", "1", "Done");
+    fx.agent_commit("claude/keep", "k.txt", "1", "Keep");
+    let data = fx.root.join("appdata");
+    std::fs::create_dir_all(&data).unwrap();
+    let core = Core::start(&data, Arc::new(Recorder::default()), "test").await;
+    let id = core.add_repo(fx.local.to_str().unwrap()).await.unwrap().id;
+    let tip = |name: &str| {
+        core.get_branches(&id).unwrap().branches.into_iter().find(|b| b.name == name && !b.deleted).map(|b| b.sha)
+    };
+    assert_eq!(tip("claude/done").as_deref(), Some(old.as_str()));
+
+    // An agent pushes after the user looked: the stale tip is refused.
+    let new = fx.agent_commit("claude/done", "d.txt", "2", "More");
+    let err = core.delete_remote_branch(&id, "claude/done", &old).await.unwrap_err();
+    assert!(err.message.contains("delete again"), "{}", err.message);
+    assert_eq!(sh(&fx.origin, &["rev-parse", "refs/heads/claude/done"]), new);
+
+    // Once Echo has seen the new tip, deleting works and the list drops it.
+    core.sync_now(&id).await.unwrap();
+    wait_for("new tip", || tip("claude/done").as_deref() == Some(new.as_str())).await;
+    core.delete_remote_branch(&id, "claude/done", &new).await.unwrap();
+    let heads = sh(&fx.origin, &["for-each-ref", "--format=%(refname)", "refs/heads"]);
+    assert!(!heads.contains("claude/done") && heads.contains("claude/keep"), "{heads}");
+    wait_for("gone", || tip("claude/done").is_none()).await;
+
+    // The synced branch and origin's default branch are refused.
+    core.start_sync(&id, "claude/keep", false).await.unwrap();
+    let keep = tip("claude/keep").unwrap();
+    assert!(core.delete_remote_branch(&id, "claude/keep", &keep).await.is_err());
+    let main = tip("main").unwrap();
+    let err = core.delete_remote_branch(&id, "main", &main).await.unwrap_err();
+    assert!(err.message.contains("default branch"), "{}", err.message);
+    assert!(sh(&fx.origin, &["for-each-ref", "refs/heads/main"]).contains("main"));
+}

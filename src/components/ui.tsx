@@ -221,3 +221,11 @@ export function CopyIcon({ className = "" }: { className?: string }) {
     </svg>
   );
 }
+
+export function TrashIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg aria-hidden width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`}>
+      <path d="M1.75 3h8.5M4.5 3V1.75h3V3M2.75 3l.5 7.25h5.5l.5-7.25M5 5v3.25M7 5v3.25" />
+    </svg>
+  );
+}
