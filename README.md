@@ -62,6 +62,18 @@ so tools set up in `.zshrc` or `.zprofile`, such as nvm and pnpm, are on the
 `PATH`. Closing the window keeps servers running in the background; quitting
 Echo stops them.
 
+## Updates
+
+Echo updates itself. Shortly after launch and every few hours it checks the
+latest published release, downloads a newer version in the background and
+shows **Restart to update** in the footer and the tray menu (the tray also has
+**Check for updates**). Nothing installs until you choose to restart, since
+restarting stops any dev servers Echo is running.
+
+Updates are signed: Echo only installs a download signed with the release
+key, whose public half is in `src-tauri/tauri.conf.json`. Versions before
+0.2.0 have no updater, so install 0.2.0 by hand once.
+
 ## Install (unsigned builds)
 
 Download from the [latest release](https://github.com/Coda-Co/echo/releases/latest)
@@ -216,10 +228,20 @@ Settings and seen-state live in the app data directory as `config.json` and
 
 ## Release
 
-Push a `v*` tag. GitHub Actions builds a universal macOS `.dmg` and Windows
-`.msi` / NSIS installer and attaches them to a draft release. Run the
-Release workflow manually to get installers as build artefacts without a
-release.
+1. Bump the version in `package.json` and `Cargo.toml` (`[workspace.package]`).
+2. Push a `v*` tag. GitHub Actions builds a universal macOS `.dmg` and
+   Windows `.msi` / NSIS installer, plus signed update bundles and
+   `latest.json`, and attaches them to a draft release.
+3. Check the draft and press **Publish**. Installed copies only see a release
+   once it's published, so publishing is what ships the update.
+
+Signing needs the `TAURI_SIGNING_PRIVATE_KEY` and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets. Keep a copy of the
+private key somewhere safe: without it, installed copies can't be updated.
+
+Run the Release workflow manually to get installers as build artefacts
+without a release. Local builds (`pnpm tauri build -c src-tauri/tauri.dev.conf.json`)
+skip the update bundles, so they don't need the key.
 
 ## Known limitations
 

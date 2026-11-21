@@ -7,6 +7,7 @@
 mod commands;
 mod platform;
 mod tray;
+mod updater;
 
 use echo_core::{Core, CoreEvent, EventSink};
 use std::sync::Arc;
@@ -121,6 +122,7 @@ fn main() {
         )
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![HIDDEN_ARG])))
         .plugin(
             tauri_plugin_window_state::Builder::default()
@@ -137,9 +139,11 @@ fn main() {
             let core = tauri::async_runtime::block_on(Core::start(data_dir, sink, &version));
             let settings = core.get_settings();
             app.manage(AppState { core });
+            app.manage(updater::UpdateState::default());
 
             tray::create(&handle)?;
             apply_autostart(&handle, settings.launch_at_login);
+            updater::start(&handle);
 
             let launched_hidden = std::env::args().any(|a| a == HIDDEN_ARG);
             if !(launched_hidden && settings.start_hidden) {
@@ -198,6 +202,8 @@ fn main() {
             commands::open_dev_server_url,
             commands::pin_dev_command,
             commands::unpin_dev_command,
+            commands::update_status,
+            commands::install_update,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Echo");

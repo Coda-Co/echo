@@ -34,6 +34,10 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs the update bundles; the app checks them against the public
+          # key in tauri.conf.json before installing.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: Echo ${{ github.ref_name }}
@@ -41,6 +45,10 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+          # latest.json for the updater; on Windows update with the per-user
+          # NSIS installer, which needs no admin rights.
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true
       # Manual runs (no tag) don't create a release; keep the installers as artefacts.
       - uses: actions/upload-artifact@v4
         if: github.ref_type != 'tag'

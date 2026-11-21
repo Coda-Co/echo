@@ -15,5 +15,8 @@
         "center": true
       }
     ]
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false
   }
 }

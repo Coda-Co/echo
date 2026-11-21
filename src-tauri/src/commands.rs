@@ -246,3 +246,17 @@ pub fn pin_dev_command(state: State<'_, AppState>, repo_id: String, command: Str
 pub fn unpin_dev_command(state: State<'_, AppState>, repo_id: String, command: String) -> R<RepoSummary> {
     state.core.unpin_dev_command(&repo_id, &command)
 }
+
+// ---- Updates ----
+
+/// A downloaded update waiting for a restart, if any.
+#[tauri::command]
+pub fn update_status(state: State<'_, crate::updater::UpdateState>) -> Option<crate::updater::ReadyUpdate> {
+    state.ready()
+}
+
+/// Install the downloaded update and relaunch. Stops running dev servers.
+#[tauri::command]
+pub fn install_update(app: AppHandle) -> R<()> {
+    crate::updater::install_and_restart(&app).map_err(invalid)
+}

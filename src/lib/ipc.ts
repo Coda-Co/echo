@@ -15,6 +15,7 @@ import type {
   FlagKind,
   PullRequestSnapshot,
   RepoConfig,
+  ReadyUpdate,
   RepoSummary,
   Settings,
   SyncEvent,
@@ -86,6 +87,10 @@ export const ipc = {
     invoke<RepoSummary>("pin_dev_command", { repoId, command, name }),
   unpinDevCommand: (repoId: string, command: string) =>
     invoke<RepoSummary>("unpin_dev_command", { repoId, command }),
+
+  updateStatus: () => invoke<ReadyUpdate | null>("update_status"),
+  /** Installs the downloaded update and relaunches Echo (stops dev servers). */
+  installUpdate: () => invoke<void>("install_update"),
 };
 
 export interface EventPayloads {
@@ -98,6 +103,7 @@ export interface EventPayloads {
   "pull-requests-updated": { repoId: string; prs: PullRequestSnapshot };
   "dev-server-output": { repoId: string; seq: number; data: string };
   "dev-server-changed": { repoId: string; status: DevServerStatus };
+  "update-ready": ReadyUpdate;
   /** Only sent after the user picks a branch in the tray menu that needs a decision. */
   "focus-repo": { repoId: string };
 }

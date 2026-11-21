@@ -1,7 +1,16 @@
 import { create } from "zustand";
 import { errorMessage, ipc, on } from "./ipc";
 import { terminals } from "./terminals";
-import type { AppInfo, BranchSnapshot, CmdError, PullRequestSnapshot, RepoSummary, Settings, SyncEvent } from "./types";
+import type {
+  AppInfo,
+  BranchSnapshot,
+  CmdError,
+  PullRequestSnapshot,
+  ReadyUpdate,
+  RepoSummary,
+  Settings,
+  SyncEvent,
+} from "./types";
 
 /** A pending "are you sure" prompt shown as a modal. */
 export type Prompt =
@@ -25,6 +34,8 @@ interface EchoState {
   settingsOpen: false | "global" | "repo";
   /** Dev server panel expanded (otherwise a status line in the footer). */
   devPanelOpen: boolean;
+  /** Downloaded update waiting for a restart. */
+  update: ReadyUpdate | null;
 
   init: () => Promise<() => void>;
   select: (id: string | null) => void;
@@ -87,6 +98,7 @@ export const useEcho = create<EchoState>((set, get) => ({
   toast: null,
   settingsOpen: false,
   devPanelOpen: readFlag(DEV_PANEL_KEY, true),
+  update: null,
 
   init: async () => {
     const unlisten = await Promise.all([
@@ -110,12 +122,17 @@ export const useEcho = create<EchoState>((set, get) => ({
         set((s) => ({ repos: s.repos.map((r) => (r.id === repoId ? { ...r, devServer: status } : r)) })),
       ),
       on("dev-server-output", ({ repoId, seq, data }) => terminals.output(repoId, seq, data)),
+      on("update-ready", (update) => set({ update })),
     ]);
     const [appInfo, settings, repos] = await Promise.all([ipc.appInfo(), ipc.getSettings(), ipc.listRepos()]);
     // Restore the user's last selection; activity elsewhere only shows as dots.
     const saved = readSelected();
     const selectedId = (saved && repos.some((r) => r.id === saved) ? saved : repos[0]?.id) ?? null;
     set({ appInfo, settings, repos, ready: true });
+    ipc
+      .updateStatus()
+      .then((update) => set({ update }))
+      .catch(() => {});
     get().select(selectedId);
     return () => unlisten.forEach((u) => u());
   },

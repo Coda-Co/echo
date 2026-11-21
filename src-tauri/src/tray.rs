@@ -1,6 +1,7 @@
 //! Tray / menu bar icon and menu. The icon is drawn at runtime so each state
 //! (idle, syncing, unseen activity, blocked, error) gets its own badge.
 
+use crate::updater::UpdateState;
 use crate::{show_main, AppState};
 use echo_core::{TrayIconState, TrayModel};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -62,17 +63,29 @@ impl TrayRefresher {
     }
 }
 
-static LAST: Mutex<Option<TrayModel>> = Mutex::new(None);
+static LAST: Mutex<Option<(TrayModel, Option<String>)>> = Mutex::new(None);
+
+/// Rebuild the tray now (from any thread), e.g. when an update is ready.
+pub fn refresh_now(app: &AppHandle) {
+    let app2 = app.clone();
+    let _ = app.run_on_main_thread(move || refresh(&app2));
+}
+
+fn ready_update(app: &AppHandle) -> Option<String> {
+    app.try_state::<UpdateState>().and_then(|s| s.ready()).map(|u| u.version)
+}
 
 fn refresh(app: &AppHandle) {
     let Some(state) = app.try_state::<AppState>() else { return };
     let model = state.core.tray_model();
+    let update = ready_update(app);
     {
         let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
-        if last.as_ref() == Some(&model) {
+        let key = (model.clone(), update);
+        if last.as_ref() == Some(&key) {
             return;
         }
-        *last = Some(model.clone());
+        *last = Some(key);
     }
     let Some(tray) = app.tray_by_id(TRAY_ID) else { return };
     let (icon, template) = draw_icon(model.icon);
@@ -121,6 +134,11 @@ fn build_menu(app: &AppHandle, model: &TrayModel) -> tauri::Result<Menu<tauri::W
         }
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    if let Some(version) = ready_update(app) {
+        menu.append(&item("update:install", &format!("Restart to update to {version}"), true)?)?;
+    } else if crate::updater::enabled() {
+        menu.append(&item("update:check", "Check for updates", true)?)?;
+    }
     menu.append(&item("open", &format!("Open {}", app_name(app)), true)?)?;
     menu.append(&item("quit", &format!("Quit {}", app_name(app)), true)?)?;
     Ok(menu)
@@ -144,6 +162,15 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     match id.as_str() {
         "open" => show_main(app),
         "quit" => app.exit(0),
+        "update:check" => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move { crate::updater::check(&app, true).await });
+        }
+        "update:install" => {
+            if let Err(e) = crate::updater::install_and_restart(app) {
+                log::warn!("{e}");
+            }
+        }
         _ => {
             let Some(state) = app.try_state::<AppState>() else { return };
             let core = state.core.clone();

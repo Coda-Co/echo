@@ -6,6 +6,7 @@ import { RepoSidebar, UnavailableRepo } from "./components/RepoSidebar";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SyncBar } from "./components/SyncBar";
 import { Button, Spinner } from "./components/ui";
+import { ipc } from "./lib/ipc";
 import { selectedRepo, useEcho } from "./lib/store";
 
 export function App() {
@@ -63,6 +64,7 @@ export function App() {
         )}
         <footer className="flex items-center justify-end gap-2 border-t border-zinc-200 px-3 py-1 dark:border-zinc-700">
           {repo?.available && !devPanelOpen && <DevServerStatusLine repo={repo} />}
+          <UpdateButton />
           <Button variant="ghost" onClick={() => useEcho.getState().openSettings(repo ? "repo" : "global")}>
             ⚙ Settings
           </Button>
@@ -79,6 +81,28 @@ export function App() {
         </div>
       )}
     </div>
+  );
+}
+
+/** "Restart to update" once a new version has downloaded. */
+export function UpdateButton() {
+  const update = useEcho((s) => s.update);
+  const serversRunning = useEcho((s) =>
+    s.repos.some((r) => r.devServer.kind === "running" || r.devServer.kind === "stopping"),
+  );
+  if (!update) return null;
+  return (
+    <Button
+      variant="primary"
+      onClick={() => useEcho.getState().run(() => ipc.installUpdate())}
+      title={`${update.notes ? `${update.notes}\n\n` : ""}Installs Echo ${update.version} and restarts.${
+        serversRunning ? " Running dev servers will be stopped." : ""
+      }`}
+      className="shrink-0"
+    >
+      Restart to update to {update.version}
+      {serversRunning && <span className="font-normal opacity-80">(stops dev servers)</span>}
+    </Button>
   );
 }
 

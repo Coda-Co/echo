@@ -216,3 +216,9 @@ export interface PullRequestSnapshot {
   byBranch: Record<string, PullRequest>;
   error: string | null;
 }
+
+/** A downloaded update waiting for a restart. */
+export interface ReadyUpdate {
+  version: string;
+  notes: string | null;
+}
