@@ -108,6 +108,49 @@ export function PromptDialog() {
           </Footer>
         </Modal>
       );
+    case "deleteBranch":
+      return (
+        <Modal title={`Delete ${prompt.branch}?`} onClose={close}>
+          <Body>
+            <p>
+              Deletes the branch on origin. If someone pushed to it since you looked, Echo stops instead of deleting.
+            </p>
+            {prompt.prNumber !== null && (
+              <p className="font-medium text-amber-700 dark:text-amber-300">
+                Its open pull request #{prompt.prNumber} will be closed.
+              </p>
+            )}
+            <p className="text-zinc-500">
+              Runs <code>git push origin --delete {prompt.branch}</code>. Local branches aren't touched.
+            </p>
+          </Body>
+          <Footer>
+            {prompt.githubUrl && (
+              <Button
+                variant="ghost"
+                className="mr-auto"
+                title="Open the branches page on GitHub in your browser"
+                onClick={() => void run(() => ipc.openBranchesOnGitHub(prompt.repoId))}
+              >
+                Open on GitHub
+              </Button>
+            )}
+            <Button onClick={close}>Cancel</Button>
+            <Button
+              variant="danger"
+              disabled={busy}
+              onClick={() =>
+                go(async () => {
+                  await ipc.deleteRemoteBranch(prompt.repoId, prompt.branch, prompt.sha);
+                  showToast(`Deleted ${prompt.branch}`);
+                })
+              }
+            >
+              Delete branch
+            </Button>
+          </Footer>
+        </Modal>
+      );
     case "removeRepo":
       return (
         <Modal title={`Remove ${prompt.name}?`} onClose={close}>

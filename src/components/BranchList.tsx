@@ -9,7 +9,7 @@ import { Button, Spinner } from "./ui";
 export function BranchList({ repo }: { repo: RepoSummary }) {
   const snapshot = useEcho((s) => s.branches[repo.id]);
   const prs = useEcho((s) => s.pullRequests[repo.id]?.byBranch);
-  const { run, startSync } = useEcho.getState();
+  const { run, startSync, setPrompt } = useEcho.getState();
   const now = useNow(30_000);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -98,6 +98,16 @@ export function BranchList({ repo }: { repo: RepoSummary }) {
               onMarkSeen={() => run(() => ipc.markSeen(repo.id, b.name))}
               onSwitch={() => startSync(repo.id, b.name)}
               onPreview={() => onPreview(b.name, b.status.kind !== "seen")}
+              onDelete={() =>
+                setPrompt({
+                  kind: "deleteBranch",
+                  repoId: repo.id,
+                  branch: b.name,
+                  sha: b.sha,
+                  prNumber: prs?.[b.name]?.number ?? null,
+                  githubUrl: repo.githubUrl,
+                })
+              }
             />
           ))}
         </ul>

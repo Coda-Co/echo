@@ -70,6 +70,11 @@ export const ipc = {
   openOnGitHub: (repoId: string) => invoke<void>("open_on_github", { repoId }),
   /** Opens the open PR for a branch in the browser (URL is built in Rust). */
   openPullRequest: (repoId: string, branch: string) => invoke<void>("open_pull_request", { repoId, branch }),
+  /** Opens the repo's branches page on GitHub (URL is built in Rust). */
+  openBranchesOnGitHub: (repoId: string) => invoke<void>("open_branches_on_github", { repoId }),
+  /** Deletes the branch on origin, as long as its tip is still `sha`. */
+  deleteRemoteBranch: (repoId: string, branch: string, sha: string) =>
+    invoke<void>("delete_remote_branch", { repoId, branch, sha }),
 
   /** Run `command` from the repo root in the user's shell. */
   devServerStart: (repoId: string, command: string, cols: number, rows: number) =>

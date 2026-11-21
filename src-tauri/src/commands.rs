@@ -175,6 +175,17 @@ pub fn open_on_github(state: State<'_, AppState>, repo_id: String) -> R<()> {
     open_github(&state.core.github_url(&repo_id)?)
 }
 
+/// GitHub's branches page, where branches Echo can't delete can be removed by hand.
+#[tauri::command]
+pub fn open_branches_on_github(state: State<'_, AppState>, repo_id: String) -> R<()> {
+    open_github(&format!("{}/branches", state.core.github_url(&repo_id)?))
+}
+
+#[tauri::command]
+pub async fn delete_remote_branch(state: State<'_, AppState>, repo_id: String, branch: String, sha: String) -> R<()> {
+    state.core.delete_remote_branch(&repo_id, &branch, &sha).await
+}
+
 #[tauri::command]
 pub fn open_pull_request(state: State<'_, AppState>, repo_id: String, branch: String) -> R<()> {
     open_github(&state.core.pull_request_url(&repo_id, &branch)?)

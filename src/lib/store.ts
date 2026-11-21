@@ -18,7 +18,15 @@ export type Prompt =
   | { kind: "untrackedSwitch"; repoId: string; branch: string; paths: string[] }
   | { kind: "discard"; repoId: string; files: string[] }
   | { kind: "resetToRemote"; repoId: string; branch: string; detail: string }
-  | { kind: "removeRepo"; repoId: string; name: string };
+  | { kind: "removeRepo"; repoId: string; name: string }
+  | {
+      kind: "deleteBranch";
+      repoId: string;
+      branch: string;
+      sha: string;
+      prNumber: number | null;
+      githubUrl: string | null;
+    };
 
 interface EchoState {
   ready: boolean;
