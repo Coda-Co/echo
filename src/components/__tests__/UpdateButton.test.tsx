@@ -13,8 +13,8 @@ describe("UpdateButton", () => {
   it("is hidden until an update has downloaded, then installs on click", async () => {
     const { container } = render(<UpdateButton />);
     expect(container).toBeEmptyDOMElement();
-    act(() => useEcho.setState({ update: { version: "0.2.0", notes: null } }));
-    const button = screen.getByRole("button", { name: /Restart to update to 0.2.0/ });
+    act(() => useEcho.setState({ update: { version: "0.1.3", notes: null } }));
+    const button = screen.getByRole("button", { name: /Restart to update to 0.1.3/ });
     expect(button).not.toHaveTextContent("stops dev servers");
     await userEvent.click(button);
     expect(ipc.installUpdate).toHaveBeenCalled();
@@ -23,7 +23,7 @@ describe("UpdateButton", () => {
   it("warns when dev servers are running", () => {
     act(() =>
       useEcho.setState({
-        update: { version: "0.2.0", notes: null },
+        update: { version: "0.1.3", notes: null },
         repos: [{ devServer: { kind: "running", command: "x", startedAt: 0, url: null } } as never],
       }),
     );

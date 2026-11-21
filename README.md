@@ -72,7 +72,7 @@ restarting stops any dev servers Echo is running.
 
 Updates are signed: Echo only installs a download signed with the release
 key, whose public half is in `src-tauri/tauri.conf.json`. Versions before
-0.2.0 have no updater, so install 0.2.0 by hand once.
+0.1.2 have no updater, so install 0.1.2 by hand once.
 
 ## Install (unsigned builds)
 
