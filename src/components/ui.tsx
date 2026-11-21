@@ -212,3 +212,12 @@ export function ChevronIcon({ up = false, className = "" }: { up?: boolean; clas
     </svg>
   );
 }
+
+export function CopyIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg aria-hidden width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" className={`shrink-0 ${className}`}>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1" />
+      <path d="M8 4V2.5a1 1 0 0 0-1-1H2.5a1 1 0 0 0-1 1V7a1 1 0 0 0 1 1H4" />
+    </svg>
+  );
+}

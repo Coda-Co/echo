@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { ipc } from "../lib/ipc";
-import { portLabel, relativeTime, shortDuration, useNow } from "../lib/format";
+import { isMac, portLabel, relativeTime, shortDuration, useNow } from "../lib/format";
 import { readLocal, useEcho, writeLocal } from "../lib/store";
 import { TERMINAL_BG, terminals } from "../lib/terminals";
 import type { DevServerStatus, RepoSummary } from "../lib/types";
 import { CommandField } from "./CommandField";
-import { Button, ChevronIcon, RestartIcon, StopIcon } from "./ui";
+import { Button, ChevronIcon, CopyIcon, RestartIcon, StopIcon } from "./ui";
 
 const HEIGHT_KEY = "echo.devPanelHeight";
 const MIN_HEIGHT = 120;
@@ -235,8 +235,113 @@ function TerminalView({ repoId }: { repoId: string }) {
     };
   }, [repoId]);
   return (
-    <div className="min-h-0 flex-1 py-1.5 pl-3 pr-1" style={{ background: TERMINAL_BG }}>
+    <div className="group relative min-h-0 flex-1 py-1.5 pl-3 pr-1" style={{ background: TERMINAL_BG }}>
       <div ref={ref} data-testid="dev-terminal" className="h-full w-full" />
+      <CopyButton repoId={repoId} />
+    </div>
+  );
+}
+
+const COPY_KEY = "echo.devCopyLines";
+/** `null` = everything. */
+export const COPY_CHOICES: (number | null)[] = [50, 200, 500, 1000, null];
+const choiceLabel = (n: number | null) => (n === null ? "all output" : `last ${n} lines`);
+
+function readCopyChoice(): number | null {
+  const v = readLocal(COPY_KEY);
+  if (v === "all") return null;
+  const n = Number(v);
+  return COPY_CHOICES.includes(n) ? n : 200;
+}
+
+/**
+ * Split button over the terminal: copies the selection if there is one,
+ * otherwise the last N lines; the menu picks N (remembered) and copies.
+ */
+function CopyButton({ repoId }: { repoId: string }) {
+  const [choice, setChoice] = useState(readCopyChoice);
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", close);
+    };
+  }, [open]);
+
+  const copy = async (n: number | null, preferSelection: boolean) => {
+    const done = await terminals.copy(repoId, n ?? undefined, preferSelection);
+    const { showToast } = useEcho.getState();
+    if (!done) showToast("Nothing to copy");
+    else if (done.kind === "selection") showToast("Copied selection");
+    else showToast(`Copied ${done.count} line${done.count === 1 ? "" : "s"}`);
+  };
+
+  const pick = (n: number | null) => {
+    setChoice(n);
+    writeLocal(COPY_KEY, n === null ? "all" : String(n));
+    setOpen(false);
+    void copy(n, false);
+  };
+
+  const base = "inline-flex h-6 items-center border-zinc-600 bg-zinc-800/90 text-[11px] text-zinc-200 hover:bg-zinc-700";
+  return (
+    <div
+      ref={rootRef}
+      // Keep the terminal's selection when the buttons are pressed.
+      onMouseDown={(e) => e.preventDefault()}
+      className={`absolute right-4 top-2 z-10 flex transition-opacity focus-within:opacity-100 group-hover:opacity-100 ${
+        open ? "opacity-100" : "opacity-0"
+      }`}
+    >
+      <button
+        type="button"
+        title={`Copies the selection if there is one, otherwise the ${choiceLabel(choice)}. You can also select text and press ${isMac ? "⌘C" : "Ctrl+C"}.`}
+        onClick={() => copy(choice, true)}
+        className={`${base} gap-1 rounded-l-md border px-2`}
+      >
+        <CopyIcon />
+        Copy {choice === null ? "all" : `last ${choice}`}
+      </button>
+      <button
+        type="button"
+        aria-label="Choose how many lines to copy"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={`${base} rounded-r-md border border-l-0 px-1`}
+      >
+        <ChevronIcon />
+      </button>
+      {open && (
+        <ul
+          role="menu"
+          aria-label="Copy output"
+          className="absolute right-0 top-7 min-w-40 rounded-md border border-zinc-600 bg-zinc-800 py-1 text-[11px] text-zinc-200 shadow-xl"
+        >
+          {COPY_CHOICES.map((n) => (
+            <li key={String(n)} role="none">
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={n === choice}
+                onClick={() => pick(n)}
+                className="flex w-full items-center gap-2 whitespace-nowrap px-2.5 py-1 text-left hover:bg-blue-600 hover:text-white"
+              >
+                <span className="w-2">{n === choice ? "✓" : ""}</span>
+                Copy {choiceLabel(n)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

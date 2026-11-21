@@ -49,6 +49,11 @@ shortcuts, prompts and Ctrl+C all work).
 - When Echo pulls or switches branch, it writes a line such as
   `── echo · pulled 2 commits on claude/… ──` into the output, so you can see
   which push caused a reload or a crash.
+- **Copying output.** Select text and press ⌘C (Ctrl+C on Windows): with a
+  selection Ctrl+C copies, without one it still interrupts the server.
+  Ctrl+Shift+C always copies. The **Copy** button over the terminal copies the
+  selection, or else the last 50, 200, 500 or 1000 lines or all output (pick
+  from its menu; the choice is remembered). Echo keeps the last 10,000 lines.
 - Collapse the panel to a one-line status in the footer. The sidebar shows a
   terminal icon for repos with a running server, red if it crashed.
 

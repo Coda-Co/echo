@@ -12,6 +12,7 @@ vi.mock("../../lib/terminals", () => ({
     size: vi.fn(() => ({ cols: 100, rows: 20 })),
     focus: vi.fn(),
     output: vi.fn(),
+    copy: vi.fn(async (_id: string, last?: number) => ({ kind: "lines", count: last ?? 1234 })),
   },
 }));
 vi.mock("../../lib/ipc", () => ({
@@ -35,6 +36,7 @@ globalThis.ResizeObserver = class {
 };
 
 const { ipc } = await import("../../lib/ipc");
+const { terminals } = await import("../../lib/terminals");
 const { DevServerPanel, DevServerStatusLine, initialCommand } = await import("../DevServerPanel");
 const { useEcho } = await import("../../lib/store");
 
@@ -119,6 +121,28 @@ describe("DevServerPanel", () => {
     expect(screen.queryByRole("combobox")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Edit command" }));
     expect(screen.getByRole("combobox", { name: "Dev server command" })).toHaveValue("pnpm dev --agents=planner");
+  });
+
+  it("copies the selection or the last N lines, with N picked from a menu", async () => {
+    localStorage.removeItem("echo.devCopyLines");
+    render(<DevServerPanel repo={repo(crashed)} />);
+    await userEvent.click(screen.getByRole("button", { name: /Copy last 200/ }));
+    expect(terminals.copy).toHaveBeenLastCalledWith("r1", 200, true);
+    expect(useEcho.getState().toast).toBe("Copied 200 lines");
+
+    await userEvent.click(screen.getByRole("button", { name: "Choose how many lines to copy" }));
+    const items = screen.getAllByRole("menuitemradio");
+    expect(items.map((i) => i.textContent)).toEqual([
+      "Copy last 50 lines",
+      "✓Copy last 200 lines",
+      "Copy last 500 lines",
+      "Copy last 1000 lines",
+      "Copy all output",
+    ]);
+    await userEvent.click(screen.getByRole("menuitemradio", { name: /all output/ }));
+    expect(terminals.copy).toHaveBeenLastCalledWith("r1", undefined, false);
+    expect(screen.getByRole("button", { name: /Copy all/ })).toBeInTheDocument();
+    expect(localStorage.getItem("echo.devCopyLines")).toBe("all");
   });
 
   it("collapses to a status line in the footer", async () => {

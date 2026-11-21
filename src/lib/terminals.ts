@@ -7,6 +7,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
+import { copyText, isMac } from "./format";
 import { ipc } from "./ipc";
 
 const FONT_FAMILY = '"Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
@@ -36,7 +37,7 @@ function create(repoId: string): Slot {
     fontFamily: FONT_FAMILY,
     fontSize: 12,
     lineHeight: 1.2,
-    scrollback: 5000,
+    scrollback: 10_000,
     cursorBlink: false,
     cursorStyle: "bar",
     cursorInactiveStyle: "none",
@@ -65,6 +66,7 @@ function create(repoId: string): Slot {
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  term.attachCustomKeyEventHandler((e) => copyPasteKeys(term, e));
   // Keystrokes go to the running process; Rust ignores them when nothing runs.
   term.onData((data) => void ipc.devServerWrite(repoId, data).catch(() => {}));
 
@@ -85,6 +87,49 @@ function create(repoId: string): Slot {
     .finally(() => (slot.queue = null));
   slots.set(repoId, slot);
   return slot;
+}
+
+/**
+ * Copy and paste keys, as in most terminals:
+ * - Ctrl+C (or ⌘C) with text selected copies it; with nothing selected,
+ *   Ctrl+C still interrupts the server.
+ * - Ctrl+Shift+C always copies, Ctrl+Shift+V / Ctrl+V (⌘V) paste.
+ * Returning false stops xterm sending the key to the process.
+ */
+export function copyPasteKeys(term: Terminal, e: KeyboardEvent): boolean {
+  if (e.type !== "keydown") return true;
+  const key = e.key.toLowerCase();
+  const mod = isMac ? e.metaKey || e.ctrlKey : e.ctrlKey;
+  if (!mod || e.altKey) return true;
+  if (key === "c" && (term.hasSelection() || e.shiftKey || (isMac && e.metaKey))) {
+    e.preventDefault();
+    if (term.hasSelection()) {
+      void copyText(term.getSelection());
+      term.clearSelection();
+    }
+    return false;
+  }
+  // Let the browser fire its paste event, which xterm turns into input.
+  if (key === "v" && (e.shiftKey || !isMac || e.metaKey)) return false;
+  return true;
+}
+
+/**
+ * Output in the terminal's scrollback, with wrapped lines joined and trailing
+ * blank lines dropped. `last` keeps only that many lines from the end.
+ */
+export function outputLines(term: Terminal, last?: number): string[] {
+  const buf = term.buffer.active;
+  const lines: string[] = [];
+  for (let i = 0; i < buf.length; i++) {
+    const line = buf.getLine(i);
+    if (!line) continue;
+    const text = line.translateToString(true);
+    if (line.isWrapped && lines.length > 0) lines[lines.length - 1] += text;
+    else lines.push(text);
+  }
+  while (lines.length > 0 && lines[lines.length - 1].trim() === "") lines.pop();
+  return last === undefined ? lines : lines.slice(-last);
 }
 
 export const terminals = {
@@ -141,6 +186,27 @@ export const terminals = {
   size(repoId: string): { cols: number; rows: number } {
     const slot = slots.get(repoId);
     return slot?.opened ? { cols: slot.term.cols, rows: slot.term.rows } : { cols: 120, rows: 30 };
+  },
+
+  /**
+   * Copy the selection if there is one (unless `preferSelection` is false),
+   * else the last `last` lines of output (all of it when undefined).
+   */
+  async copy(
+    repoId: string,
+    last: number | undefined,
+    preferSelection = true,
+  ): Promise<{ kind: "selection" } | { kind: "lines"; count: number } | null> {
+    const slot = slots.get(repoId);
+    if (!slot) return null;
+    if (preferSelection && slot.term.hasSelection()) {
+      await copyText(slot.term.getSelection());
+      return { kind: "selection" };
+    }
+    const lines = outputLines(slot.term, last);
+    if (lines.every((l) => !l.trim())) return null;
+    await copyText(lines.join("\n"));
+    return { kind: "lines", count: lines.length };
   },
 
   focus(repoId: string) {
